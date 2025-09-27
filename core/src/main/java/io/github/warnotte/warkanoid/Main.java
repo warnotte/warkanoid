@@ -6,6 +6,11 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -16,11 +21,60 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Main extends ApplicationAdapter {
+    private static final String CRT_VERTEX_SHADER = "attribute vec4 a_position;\n" +
+            "attribute vec4 a_color;\n" +
+            "attribute vec2 a_texCoord0;\n" +
+            "uniform mat4 u_projTrans;\n" +
+            "varying vec4 v_color;\n" +
+            "varying vec2 v_texCoords;\n" +
+            "void main() {\n" +
+            "    v_color = a_color;\n" +
+            "    v_texCoords = a_texCoord0;\n" +
+            "    gl_Position = u_projTrans * a_position;\n" +
+            "}\n";
+
+    private static final String CRT_FRAGMENT_SHADER = "#ifdef GL_ES\n" +
+            "precision mediump float;\n" +
+            "#endif\n" +
+            "varying vec4 v_color;\n" +
+            "varying vec2 v_texCoords;\n" +
+            "uniform sampler2D u_texture;\n" +
+            "uniform float u_time;\n" +
+            "uniform vec2 u_resolution;\n" +
+            "void main() {\n" +
+            "    vec2 uv = v_texCoords;\n" +
+            "    vec2 centered = uv - 0.5;\n" +
+            "    float dist = dot(centered, centered);\n" +
+            "    float curvature = 0.12;\n" +
+            "    vec2 curvedUV = centered * (1.0 + curvature * dist) + 0.5;\n" +
+            "    curvedUV = clamp(curvedUV, 0.0, 1.0);\n" +
+            "    float radius = length(centered);\n" +
+            "    vec2 dir = radius > 0.0 ? centered / radius : vec2(0.0);\n" +
+            "    float aberration = 0.003 + dist * 0.012;\n" +
+            "    vec3 color;\n" +
+            "    color.r = texture2D(u_texture, curvedUV + dir * aberration).r;\n" +
+            "    color.g = texture2D(u_texture, curvedUV).g;\n" +
+            "    color.b = texture2D(u_texture, curvedUV - dir * aberration).b;\n" +
+            "    float scan = 0.04 * sin((curvedUV.y * u_resolution.y) * 1.5 + u_time * 3.0);\n" +
+            "    color *= 1.0 - scan;\n" +
+            "    float vignette = curvedUV.x * (1.0 - curvedUV.x) * curvedUV.y * (1.0 - curvedUV.y);\n" +
+            "    vignette = pow(vignette * 16.0, 0.35);\n" +
+            "    color *= mix(0.55, 1.05, clamp(vignette, 0.0, 1.0));\n" +
+            "    float noise = fract(sin(dot(curvedUV + u_time * 0.05, vec2(12.9898, 78.233))) * 43758.5453);\n" +
+            "    color += (noise - 0.5) * 0.02;\n" +
+            "    color = clamp(color, 0.0, 1.0);\n" +
+            "    gl_FragColor = vec4(color, 1.0) * v_color;\n" +
+            "}\n";
     public static final int GAME_WIDTH = 800;
     public static final int GAME_HEIGHT = 600;
 
     private ShapeRenderer shapeRenderer;
     private SpriteBatch spriteBatch;
+    private SpriteBatch postProcessBatch;
+    private FrameBuffer frameBuffer;
+    private ShaderProgram crtShader;
+    private Matrix4 screenMatrix;
+    private float shaderTime;
     private Sound startSound;
     private Sound paddleHitSound;
     private Sound brickHitSound;
@@ -46,6 +100,18 @@ public class Main extends ApplicationAdapter {
     public void create() {
         shapeRenderer = new ShapeRenderer();
         spriteBatch = new SpriteBatch();
+        postProcessBatch = new SpriteBatch();
+        frameBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, GAME_WIDTH, GAME_HEIGHT, false);
+        frameBuffer.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        screenMatrix = new Matrix4().setToOrtho2D(0f, 0f, GAME_WIDTH, GAME_HEIGHT);
+        shaderTime = 0f;
+        ShaderProgram.pedantic = false;
+        crtShader = new ShaderProgram(CRT_VERTEX_SHADER, CRT_FRAGMENT_SHADER);
+        if (!crtShader.isCompiled()) {
+            Gdx.app.error("CRT", "Failed to compile CRT shader: " + crtShader.getLog());
+            crtShader.dispose();
+            crtShader = null;
+        }
         startSound = Gdx.audio.newSound(Gdx.files.internal("sounds/arkanoid_start.mp3"));
         paddleHitSound = Gdx.audio.newSound(Gdx.files.internal("sounds/Arkanoid_SFX_2.wav"));
         brickHitSound = Gdx.audio.newSound(Gdx.files.internal("sounds/Arkanoid_SFX_3.wav"));
@@ -59,6 +125,15 @@ public class Main extends ApplicationAdapter {
         camera.setToOrtho(false, GAME_WIDTH, GAME_HEIGHT); // false = Y-axis points up, origin at bottom-left
         viewport = new FitViewport(GAME_WIDTH, GAME_HEIGHT, camera);
         viewport.apply();
+
+        if (frameBuffer == null) {
+            frameBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, GAME_WIDTH, GAME_HEIGHT, false);
+            frameBuffer.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
+        if (postProcessBatch == null) {
+            postProcessBatch = new SpriteBatch();
+        }
 
         // Create paddle at bottom center
         paddle = new Paddle(GAME_WIDTH / 2f - 50f, 30f, 100f, 15f);
@@ -129,28 +204,30 @@ public class Main extends ApplicationAdapter {
     public void render() {
         float deltaTime = Gdx.graphics.getDeltaTime();
 
-        // Update logic
         update(deltaTime);
 
-        // Clear screen
-        ScreenUtils.clear(0.1f, 0.1f, 0.15f, 1f);
-
-        // Update viewport
         viewport.apply();
 
-        // Set projection matrix
+        if (frameBuffer == null) {
+            frameBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, GAME_WIDTH, GAME_HEIGHT, false);
+            frameBuffer.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
+        if (postProcessBatch == null) {
+            postProcessBatch = new SpriteBatch();
+        }
+
+        frameBuffer.begin();
+        ScreenUtils.clear(0.1f, 0.1f, 0.15f, 1f);
+
         shapeRenderer.setProjectionMatrix(camera.combined);
 
-        // Draw everything
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         // Draw walls (white borders)
         shapeRenderer.setColor(Color.WHITE);
-        // Left wall
         shapeRenderer.rect(0, 0, 5f, GAME_HEIGHT);
-        // Right wall
         shapeRenderer.rect(GAME_WIDTH - 5f, 0, 5f, GAME_HEIGHT);
-        // Top wall
         shapeRenderer.rect(0, GAME_HEIGHT - 5f, GAME_WIDTH, 5f);
 
         // Draw paddle (white)
@@ -197,10 +274,8 @@ public class Main extends ApplicationAdapter {
         spriteBatch.setProjectionMatrix(camera.combined);
         spriteBatch.begin();
 
-        // Always show score
         font.draw(spriteBatch, "Score: " + score, 20f, GAME_HEIGHT - 20f);
 
-        // Show game state messages
         if (gameOver) {
             font.draw(spriteBatch, "GAME OVER", GAME_WIDTH / 2f - 80f, GAME_HEIGHT / 2f + 20f);
             font.draw(spriteBatch, "Final Score: " + score, GAME_WIDTH / 2f - 100f, GAME_HEIGHT / 2f - 10f);
@@ -214,8 +289,35 @@ public class Main extends ApplicationAdapter {
         }
 
         spriteBatch.end();
-    }
+        frameBuffer.end();
 
+        shaderTime += deltaTime;
+
+        Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
+
+        Gdx.gl.glViewport(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
+
+        Texture frameTexture = frameBuffer.getColorBufferTexture();
+        frameTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        postProcessBatch.setProjectionMatrix(screenMatrix);
+        if (crtShader != null) {
+            postProcessBatch.setShader(crtShader);
+        }
+
+        postProcessBatch.begin();
+        if (crtShader != null) {
+            crtShader.setUniformf("u_time", shaderTime);
+            crtShader.setUniformf("u_resolution", (float) frameBuffer.getWidth(), (float) frameBuffer.getHeight());
+        }
+        postProcessBatch.draw(frameTexture, 0f, 0f, GAME_WIDTH, GAME_HEIGHT, 0f, 0f, 1f, 1f);
+        postProcessBatch.end();
+
+        if (crtShader != null) {
+            postProcessBatch.setShader(null);
+        }
+    }
     private void update(float deltaTime) {
         if (gameOver || gameWon) {
             // Check for restart
@@ -683,6 +785,15 @@ public class Main extends ApplicationAdapter {
     public void dispose() {
         shapeRenderer.dispose();
         spriteBatch.dispose();
+        if (postProcessBatch != null) {
+            postProcessBatch.dispose();
+        }
+        if (frameBuffer != null) {
+            frameBuffer.dispose();
+        }
+        if (crtShader != null) {
+            crtShader.dispose();
+        }
         font.dispose();
         if (startSound != null) {
             startSound.dispose();
