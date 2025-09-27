@@ -1,0 +1,700 @@
+package io.github.warnotte.warkanoid;
+
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.audio.Sound;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main extends ApplicationAdapter {
+    public static final int GAME_WIDTH = 800;
+    public static final int GAME_HEIGHT = 600;
+
+    private ShapeRenderer shapeRenderer;
+    private SpriteBatch spriteBatch;
+    private Sound startSound;
+    private Sound paddleHitSound;
+    private Sound brickHitSound;
+    private Sound wallHitSound;
+    private BitmapFont font;
+    private OrthographicCamera camera;
+    private Viewport viewport;
+    private Paddle paddle;
+    private List<Ball> balls;
+    private List<Brick> bricks;
+    private List<PowerUp> powerUps;
+    private List<Particle> particles;
+    private List<Laser> lasers;
+    private float laserCooldown;
+    private List<Ball> stickyBalls;
+    private int score;
+    private int lives;
+    private boolean gameOver;
+    private boolean gameWon;
+    private boolean ballLaunched;
+
+    @Override
+    public void create() {
+        shapeRenderer = new ShapeRenderer();
+        spriteBatch = new SpriteBatch();
+        startSound = Gdx.audio.newSound(Gdx.files.internal("sounds/arkanoid_start.mp3"));
+        paddleHitSound = Gdx.audio.newSound(Gdx.files.internal("sounds/Arkanoid_SFX_2.wav"));
+        brickHitSound = Gdx.audio.newSound(Gdx.files.internal("sounds/Arkanoid_SFX_3.wav"));
+        wallHitSound = Gdx.audio.newSound(Gdx.files.internal("sounds/Arkanoid_SFX_4.wav"));
+        font = new BitmapFont(); // Default font
+        font.setColor(Color.WHITE);
+        font.getData().setScale(1.5f); // Make text bigger
+
+        // Setup camera and viewport
+        camera = new OrthographicCamera();
+        camera.setToOrtho(false, GAME_WIDTH, GAME_HEIGHT); // false = Y-axis points up, origin at bottom-left
+        viewport = new FitViewport(GAME_WIDTH, GAME_HEIGHT, camera);
+        viewport.apply();
+
+        // Create paddle at bottom center
+        paddle = new Paddle(GAME_WIDTH / 2f - 50f, 30f, 100f, 15f);
+
+        // Create initial ball on paddle
+        balls = new ArrayList<>();
+        Ball initialBall = new Ball(GAME_WIDTH / 2f, 30f + 15f + 8f, 8f); // paddle Y + paddle height + ball radius
+        initialBall.setTrailColor(Color.CYAN);
+        balls.add(initialBall);
+
+        // Initialize power-ups list
+        powerUps = new ArrayList<>();
+
+        // Initialize particles list
+        particles = new ArrayList<>();
+
+        // Initialize lasers list
+        lasers = new ArrayList<>();
+        laserCooldown = 0f;
+
+        // Initialize sticky balls
+        stickyBalls = new ArrayList<>();
+
+        // Create bricks
+        createBricks();
+
+        // Initialize game state
+        score = 0;
+        lives = 3;
+        gameOver = false;
+        gameWon = false;
+        ballLaunched = false;
+    }
+
+    private void createBricks() {
+        bricks = new ArrayList<>();
+        int rows = 6;
+        int cols = 10;
+        float brickWidth = (GAME_WIDTH - 100f) / cols;
+        float brickHeight = 20f;
+        float startX = 50f;
+        float startY = GAME_HEIGHT - 100f;
+
+        Color[] colors = {Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color.PURPLE};
+        int[] hitCounts = {1, 1, 2, 2, 3, 3}; // Bottom rows = 1 hit (easy), top rows = 3 hits (hard)
+
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                float x = startX + col * brickWidth;
+                float y = startY - row * (brickHeight + 2f);
+
+                // Row 0 = top (hardest), Row 5 = bottom (easiest)
+                // So we need to invert: bottom rows should have low hit counts
+                int difficultyIndex = (rows - 1) - row; // row 0 -> index 5, row 5 -> index 0
+                Color brickColor = colors[difficultyIndex % colors.length];
+                int maxHits = hitCounts[difficultyIndex % hitCounts.length];
+
+                // 10% chance for bomb brick (but not on easiest rows)
+                boolean isBomb = difficultyIndex >= 2 && Math.random() < 0.1;
+                Brick.Type brickType = isBomb ? Brick.Type.BOMB : Brick.Type.NORMAL;
+
+                bricks.add(new Brick(x, y, brickWidth - 2f, brickHeight, brickColor, maxHits, brickType));
+            }
+        }
+    }
+
+    @Override
+    public void render() {
+        float deltaTime = Gdx.graphics.getDeltaTime();
+
+        // Update logic
+        update(deltaTime);
+
+        // Clear screen
+        ScreenUtils.clear(0.1f, 0.1f, 0.15f, 1f);
+
+        // Update viewport
+        viewport.apply();
+
+        // Set projection matrix
+        shapeRenderer.setProjectionMatrix(camera.combined);
+
+        // Draw everything
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        // Draw walls (white borders)
+        shapeRenderer.setColor(Color.WHITE);
+        // Left wall
+        shapeRenderer.rect(0, 0, 5f, GAME_HEIGHT);
+        // Right wall
+        shapeRenderer.rect(GAME_WIDTH - 5f, 0, 5f, GAME_HEIGHT);
+        // Top wall
+        shapeRenderer.rect(0, GAME_HEIGHT - 5f, GAME_WIDTH, 5f);
+
+        // Draw paddle (white)
+        shapeRenderer.setColor(Color.WHITE);
+        paddle.render(shapeRenderer);
+
+        // Draw balls (white)
+        shapeRenderer.setColor(Color.WHITE);
+        for (Ball ball : balls) {
+            ball.render(shapeRenderer);
+        }
+
+        // Draw bricks
+        for (Brick brick : bricks) {
+            brick.render(shapeRenderer);
+        }
+
+        // Draw power-ups
+        for (PowerUp powerUp : powerUps) {
+            powerUp.render(shapeRenderer);
+        }
+
+        // Draw particles
+        for (Particle particle : particles) {
+            particle.render(shapeRenderer);
+        }
+
+        // Draw lasers
+        for (Laser laser : lasers) {
+            laser.render(shapeRenderer);
+        }
+
+        // Draw lives indicator (small circles in bottom right)
+        shapeRenderer.setColor(Color.WHITE);
+        for (int i = 0; i < lives; i++) {
+            float x = GAME_WIDTH - 30f - (i * 20f);
+            float y = 15f;
+            shapeRenderer.circle(x, y, 6f);
+        }
+
+        shapeRenderer.end();
+
+        // Draw text (score and game state)
+        spriteBatch.setProjectionMatrix(camera.combined);
+        spriteBatch.begin();
+
+        // Always show score
+        font.draw(spriteBatch, "Score: " + score, 20f, GAME_HEIGHT - 20f);
+
+        // Show game state messages
+        if (gameOver) {
+            font.draw(spriteBatch, "GAME OVER", GAME_WIDTH / 2f - 80f, GAME_HEIGHT / 2f + 20f);
+            font.draw(spriteBatch, "Final Score: " + score, GAME_WIDTH / 2f - 100f, GAME_HEIGHT / 2f - 10f);
+            font.draw(spriteBatch, "Press SPACE to restart", GAME_WIDTH / 2f - 140f, GAME_HEIGHT / 2f - 40f);
+        } else if (gameWon) {
+            font.draw(spriteBatch, "VICTORY!", GAME_WIDTH / 2f - 60f, GAME_HEIGHT / 2f + 20f);
+            font.draw(spriteBatch, "Final Score: " + score, GAME_WIDTH / 2f - 100f, GAME_HEIGHT / 2f - 10f);
+            font.draw(spriteBatch, "Press SPACE to restart", GAME_WIDTH / 2f - 140f, GAME_HEIGHT / 2f - 40f);
+        } else if (!ballLaunched && !balls.isEmpty()) {
+            font.draw(spriteBatch, "Press SPACE to launch ball", GAME_WIDTH / 2f - 150f, GAME_HEIGHT / 2f);
+        }
+
+        spriteBatch.end();
+    }
+
+    private void update(float deltaTime) {
+        if (gameOver || gameWon) {
+            // Check for restart
+            if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+                restartGame();
+            }
+            return;
+        }
+
+        // Update paddle movement (mouse has priority over keyboard)
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
+            paddle.update(deltaTime, GAME_WIDTH);
+        } else {
+            // Convert mouse coordinates to game world coordinates
+            com.badlogic.gdx.math.Vector3 mousePos = new com.badlogic.gdx.math.Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+            camera.unproject(mousePos);
+            paddle.updateWithMouse(deltaTime, GAME_WIDTH, mousePos.x);
+        }
+
+        // Check for cheat keys (testing power-ups)
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) {
+            applyPowerUp(PowerUp.Type.MULTI_BALL);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) {
+            applyPowerUp(PowerUp.Type.LARGE_PADDLE);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) {
+            applyPowerUp(PowerUp.Type.SMALL_PADDLE);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_4)) {
+            applyPowerUp(PowerUp.Type.EXTRA_LIFE);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_5)) {
+            applyPowerUp(PowerUp.Type.SPEED_UP);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_6)) {
+            applyPowerUp(PowerUp.Type.SPEED_DOWN);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_7)) {
+            applyPowerUp(PowerUp.Type.LASER);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_8)) {
+            applyPowerUp(PowerUp.Type.STICKY_PADDLE);
+        }
+
+        // Update laser cooldown
+        if (laserCooldown > 0) {
+            laserCooldown -= deltaTime;
+        }
+
+        // Handle SPACE key based on paddle mode
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            if (paddle.isLaser() && laserCooldown <= 0) {
+                // Shoot twin lasers from paddle (like original Arkanoid)
+                float laserY = paddle.getY() + paddle.getHeight();
+                // Left laser
+                lasers.add(new Laser(paddle.getX() + paddle.getWidth() * 0.25f, laserY));
+                // Right laser
+                lasers.add(new Laser(paddle.getX() + paddle.getWidth() * 0.75f, laserY));
+                laserCooldown = 0.3f; // 300ms cooldown
+            } else if (paddle.isSticky() && !stickyBalls.isEmpty()) {
+                // Release sticky balls towards mouse cursor
+                com.badlogic.gdx.math.Vector3 mousePos = new com.badlogic.gdx.math.Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+                camera.unproject(mousePos);
+
+                for (Ball stickyBall : stickyBalls) {
+                    float angle = (float) Math.atan2(mousePos.y - stickyBall.getY(), mousePos.x - stickyBall.getX());
+                    float speed = 300f;
+
+                    stickyBall.setVelocity((float)(speed * Math.cos(angle)), (float)(speed * Math.sin(angle)));
+                }
+                stickyBalls.clear(); // Release all balls
+            }
+        }
+
+        // Check for ball launch
+        if (!ballLaunched && !balls.isEmpty()) {
+            // Only follow paddle with the first ball if not launched
+            Ball firstBall = balls.get(0);
+            firstBall.followPaddle(paddle);
+            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+                firstBall.launch();
+                if (startSound != null) {
+                    startSound.play();
+                }
+                ballLaunched = true;
+            }
+            return; // Don't update ball physics until launched
+        }
+
+        // Update all balls movement with collision detection
+        for (int i = balls.size() - 1; i >= 0; i--) {
+            Ball ball = balls.get(i);
+
+            // If this ball is stuck to paddle, make it follow paddle
+            if (stickyBalls.contains(ball)) {
+                ball.followPaddle(paddle);
+            } else {
+                updateBallWithCollisions(ball, deltaTime);
+
+                // Remove balls that are out of bounds
+                if (ball.isOutOfBounds(GAME_HEIGHT)) {
+                    stickyBalls.remove(ball); // Remove from sticky list if present
+                    balls.remove(i);
+                }
+            }
+        }
+
+        // Check if all balls are lost (lost life)
+        if (balls.isEmpty()) {
+            lives--;
+            if (lives <= 0) {
+                gameOver = true;
+            } else {
+                // Reset with new ball on paddle
+                Ball newBall = new Ball(paddle.getX() + paddle.getWidth() / 2f,
+                                      paddle.getY() + paddle.getHeight() + 8f, 8f);
+                newBall.setTrailColor(Color.CYAN);
+                balls.add(newBall);
+                ballLaunched = false;
+            }
+            return;
+        }
+
+        // Update power-ups
+        for (int i = powerUps.size() - 1; i >= 0; i--) {
+            PowerUp powerUp = powerUps.get(i);
+            powerUp.update(deltaTime);
+
+            // Check collision with paddle
+            if (powerUp.checkCollisionWithPaddle(paddle)) {
+                applyPowerUp(powerUp.getType());
+                powerUps.remove(i);
+                continue;
+            }
+
+            // Remove power-ups that are out of bounds
+            if (powerUp.isOutOfBounds(GAME_HEIGHT)) {
+                powerUps.remove(i);
+            }
+        }
+
+        // Update particles
+        for (int i = particles.size() - 1; i >= 0; i--) {
+            Particle particle = particles.get(i);
+            particle.update(deltaTime);
+            if (particle.isDead()) {
+                particles.remove(i);
+            }
+        }
+
+        // Update lasers
+        for (int i = lasers.size() - 1; i >= 0; i--) {
+            Laser laser = lasers.get(i);
+            laser.update(deltaTime);
+
+            // Remove lasers that are out of bounds
+            if (laser.isOutOfBounds(GAME_HEIGHT)) {
+                lasers.remove(i);
+                continue;
+            }
+
+            // Check collision with bricks
+            boolean hit = false;
+            for (Brick brick : bricks) {
+                if (laser.checkCollisionWithBrick(brick)) {
+                    score += brick.hit() ? brick.getScore() : 0;
+
+                    // Create particles if brick destroyed
+                    if (brick.isDestroyed()) {
+                        createDestructionParticles(brick.getX() + brick.getWidth() / 2f,
+                                                  brick.getY() + brick.getHeight() / 2f,
+                                                  brick.getOriginalColor());
+
+                        // Check if it was a bomb brick
+                        if (brick.isBomb()) {
+                            explodeBrick(brick.getX() + brick.getWidth() / 2f,
+                                       brick.getY() + brick.getHeight() / 2f);
+                        }
+                    }
+
+                    hit = true;
+                    break;
+                }
+            }
+            if (hit) {
+                lasers.remove(i);
+            }
+        }
+
+        // Check win condition (all bricks destroyed)
+        boolean allDestroyed = true;
+        for (Brick brick : bricks) {
+            if (!brick.isDestroyed()) {
+                allDestroyed = false;
+                break;
+            }
+        }
+        if (allDestroyed) {
+            gameWon = true;
+        }
+    }
+
+    private void restartGame() {
+        // Reset game state
+        score = 0;
+        lives = 3;
+        gameOver = false;
+        gameWon = false;
+        ballLaunched = false;
+
+        // Reset balls - start with one ball on paddle
+        balls.clear();
+        Ball newBall = new Ball(paddle.getX() + paddle.getWidth() / 2f,
+                               paddle.getY() + paddle.getHeight() + 8f, 8f);
+        newBall.setTrailColor(Color.CYAN);
+        balls.add(newBall);
+
+        // Clear power-ups, particles and lasers
+        powerUps.clear();
+        particles.clear();
+        lasers.clear();
+        laserCooldown = 0f;
+        stickyBalls = new ArrayList<>();
+
+        // Reset paddle to normal mode
+        paddle.setMode(Paddle.Mode.NORMAL);
+
+        // Recreate bricks
+        createBricks();
+    }
+
+    private void updateBallWithCollisions(Ball ball, float deltaTime) {
+        // Continuous collision detection - subdivide movement into small steps
+        float stepSize = ball.getRadius(); // Move at most one radius per step
+        float distance = ball.getVelocity().len() * deltaTime;
+        int steps = Math.max(1, (int) Math.ceil(distance / stepSize));
+
+        float stepX = (ball.getVelocity().x * deltaTime) / steps;
+        float stepY = (ball.getVelocity().y * deltaTime) / steps;
+
+        for (int i = 0; i < steps; i++) {
+            // Move ball one step
+            ball.setPosition(ball.getX() + stepX, ball.getY() + stepY);
+
+            // Check collision with walls
+            if (ball.getX() - ball.getRadius() <= 0 || ball.getX() + ball.getRadius() >= GAME_WIDTH) {
+                ball.reverseX();
+                // Keep ball in bounds
+                if (ball.getX() - ball.getRadius() < 0) ball.setPosition(ball.getRadius(), ball.getY());
+                if (ball.getX() + ball.getRadius() > GAME_WIDTH) ball.setPosition(GAME_WIDTH - ball.getRadius(), ball.getY());
+                if (wallHitSound != null) {
+                    wallHitSound.play();
+                }
+                break; // Stop movement for this frame after collision
+            }
+
+            if (ball.getY() + ball.getRadius() >= GAME_HEIGHT) {
+                ball.reverseY();
+                ball.setPosition(ball.getX(), GAME_HEIGHT - ball.getRadius());
+                if (wallHitSound != null) {
+                    wallHitSound.play();
+                }
+                break; // Stop movement for this frame after collision
+            }
+
+            // Check collision with paddle
+            if (ball.checkCollisionWithPaddle(paddle, paddle.isSticky())) {
+                if (paddleHitSound != null) {
+                    paddleHitSound.play();
+                }
+                if (paddle.isSticky() && ball.getVelocity().len() == 0) {
+                    // Calculate and store offset from paddle center for following movement
+                    float offsetX = ball.getX() - (paddle.getX() + paddle.getWidth() / 2f);
+                    ball.setStickyOffset(offsetX);
+                    stickyBalls.add(ball); // Ball is now stuck to paddle at its current position
+                }
+                break; // Stop movement for this frame after collision
+            }
+
+            // Check collision with bricks
+            boolean brickHit = false;
+            for (Brick brick : bricks) {
+                int hitsBefore = brick.getHits();
+                boolean wasDestroyed = brick.isDestroyed();
+
+                int points = ball.checkCollisionWithBrick(brick);
+                int hitsAfter = brick.getHits();
+                boolean isDestroyed = brick.isDestroyed();
+                boolean collided = hitsAfter != hitsBefore || wasDestroyed != isDestroyed;
+
+                if (collided) {
+                    if (brickHitSound != null) {
+                        brickHitSound.play();
+                    }
+
+                    if (points > 0) {
+                        score += points;
+
+                        // Check if brick was destroyed
+                        if (brick.isDestroyed()) {
+                            // Create destruction particles
+                            createDestructionParticles(brick.getX() + brick.getWidth() / 2f,
+                                                      brick.getY() + brick.getHeight() / 2f,
+                                                      brick.getOriginalColor());
+
+                            // Check if it was a bomb brick
+                            if (brick.isBomb()) {
+                                explodeBrick(brick.getX() + brick.getWidth() / 2f,
+                                           brick.getY() + brick.getHeight() / 2f);
+                            }
+
+                            // Maybe drop power-up
+                            if (Math.random() < 0.3) { // 30% chance
+                                dropPowerUp(brick.getX() + brick.getWidth() / 2f, brick.getY());
+                            }
+                        }
+                    }
+
+                    brickHit = true;
+                    break; // Only one collision per step
+                }
+            }
+            if (brickHit) {
+                break; // Stop movement for this frame after collision
+            }
+        }
+    }
+
+    private void dropPowerUp(float x, float y) {
+        // Random power-up type
+        PowerUp.Type[] types = PowerUp.Type.values();
+        PowerUp.Type randomType = types[(int) (Math.random() * types.length)];
+        powerUps.add(new PowerUp(x - 10f, y, randomType)); // Center the power-up
+    }
+
+    private void applyPowerUp(PowerUp.Type type) {
+        switch (type) {
+            case MULTI_BALL:
+                // Create 2 additional balls from the first existing ball
+                if (!balls.isEmpty()) {
+                    Ball firstBall = balls.get(0);
+                    float speed = firstBall.getVelocity().len();
+                    if (speed == 0) speed = 300f; // Default speed if ball is stationary
+
+                    // Create balls with upward angles (45-135 degrees = upward directions)
+                    float[] angles = {60f, 120f}; // Left-up and right-up
+
+                    Color[] colors = {Color.YELLOW, Color.MAGENTA}; // Different colors for variety
+                    for (int i = 0; i < 2; i++) {
+                        Ball newBall = new Ball(firstBall.getX(), firstBall.getY(), firstBall.getRadius());
+                        newBall.setTrailColor(colors[i]);
+                        float angle = angles[i] + (float)(Math.random() * 20 - 10); // Add some randomness ±10°
+
+                        newBall.setVelocity(
+                            (float) (speed * Math.cos(Math.toRadians(angle))),
+                            (float) (speed * Math.sin(Math.toRadians(angle)))
+                        );
+                        balls.add(newBall);
+                    }
+                }
+                break;
+
+            case LARGE_PADDLE:
+                // Increase paddle width by 50%
+                float oldWidth = paddle.getWidth();
+                float newWidth = oldWidth * 1.5f;
+                float newX = paddle.getX() - (newWidth - oldWidth) / 2f;
+                // Keep paddle within bounds
+                if (newX < 0) newX = 0;
+                if (newX + newWidth > GAME_WIDTH) newX = GAME_WIDTH - newWidth;
+                paddle.setX(newX);
+                paddle.setWidth(newWidth);
+                break;
+
+            case SMALL_PADDLE:
+                // Decrease paddle width by 30%
+                float oldWidthSmall = paddle.getWidth();
+                float newWidthSmall = oldWidthSmall * 0.7f;
+                float newXSmall = paddle.getX() + (oldWidthSmall - newWidthSmall) / 2f;
+                // Ensure minimum width
+                if (newWidthSmall < 40f) newWidthSmall = 40f;
+                paddle.setX(newXSmall);
+                paddle.setWidth(newWidthSmall);
+                break;
+
+            case LASER:
+                paddle.setMode(Paddle.Mode.LASER, 30f); // 30 seconds duration
+                break;
+
+            case STICKY_PADDLE:
+                paddle.setMode(Paddle.Mode.STICKY, 30f); // 30 seconds duration
+                break;
+
+            case EXTRA_LIFE:
+                lives++;
+                break;
+
+            case SPEED_UP:
+                // Increase ball speed by 20%
+                for (Ball ball : balls) {
+                    ball.setVelocity(ball.getVelocity().x * 1.2f, ball.getVelocity().y * 1.2f);
+                }
+                break;
+
+            case SPEED_DOWN:
+                // Decrease ball speed by 20%
+                for (Ball ball : balls) {
+                    ball.setVelocity(ball.getVelocity().x * 0.8f, ball.getVelocity().y * 0.8f);
+                }
+                break;
+        }
+    }
+
+    private void createDestructionParticles(float x, float y, Color brickColor) {
+        // Create 8-12 particles with the brick's color
+        int particleCount = 8 + (int)(Math.random() * 5);
+        for (int i = 0; i < particleCount; i++) {
+            particles.add(new Particle(x, y, brickColor));
+        }
+    }
+
+    private void explodeBrick(float bombX, float bombY) {
+        float explosionRadius = 80f; // Explosion radius
+
+        // Create extra explosion particles
+        for (int i = 0; i < 20; i++) {
+            particles.add(new Particle(bombX, bombY, Color.ORANGE));
+        }
+
+        // Destroy nearby bricks
+        for (Brick brick : bricks) {
+            if (!brick.isDestroyed()) {
+                float brickCenterX = brick.getX() + brick.getWidth() / 2f;
+                float brickCenterY = brick.getY() + brick.getHeight() / 2f;
+
+                // Calculate distance from explosion center
+                float distance = (float) Math.sqrt(
+                    Math.pow(brickCenterX - bombX, 2) + Math.pow(brickCenterY - bombY, 2)
+                );
+
+                if (distance <= explosionRadius) {
+                    // Destroy the brick and add score
+                    score += brick.getScore();
+                    brick.destroy();
+
+                    // Create particles for destroyed brick
+                    createDestructionParticles(brickCenterX, brickCenterY, brick.getOriginalColor());
+
+                    // Chain reaction: if destroyed brick is also a bomb, explode it too
+                    if (brick.isBomb()) {
+                        explodeBrick(brickCenterX, brickCenterY);
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        viewport.update(width, height);
+    }
+
+    @Override
+    public void dispose() {
+        shapeRenderer.dispose();
+        spriteBatch.dispose();
+        font.dispose();
+        if (startSound != null) {
+            startSound.dispose();
+        }
+        if (paddleHitSound != null) {
+            paddleHitSound.dispose();
+        }
+        if (brickHitSound != null) {
+            brickHitSound.dispose();
+        }
+        if (wallHitSound != null) {
+            wallHitSound.dispose();
+        }
+    }
+}
