@@ -40,18 +40,33 @@ public class PowerUp {
         }
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
+    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         if (!collected) {
+            shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
+            shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
+
             shapeRenderer.setColor(type.color);
             shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-            // Add a small border
-            shapeRenderer.setColor(Color.WHITE);
-            shapeRenderer.rect(bounds.x + 1, bounds.y + 1, bounds.width - 2, bounds.height - 2);
+            float borderX = bounds.x + 1f;
+            float borderY = bounds.y + 1f;
+            float borderW = bounds.width - 2f;
+            float borderH = bounds.height - 2f;
+            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
+            shapeRenderer.rect(borderX + shadowOffsetX, borderY + shadowOffsetY, borderW, borderH);
 
-            // Fill with type color
+            shapeRenderer.setColor(Color.WHITE);
+            shapeRenderer.rect(borderX, borderY, borderW, borderH);
+
+            float innerX = bounds.x + 2f;
+            float innerY = bounds.y + 2f;
+            float innerW = bounds.width - 4f;
+            float innerH = bounds.height - 4f;
+            shapeRenderer.setColor(0f, 0f, 0f, 0.25f);
+            shapeRenderer.rect(innerX + shadowOffsetX, innerY + shadowOffsetY, innerW, innerH);
+
             shapeRenderer.setColor(type.color);
-            shapeRenderer.rect(bounds.x + 2, bounds.y + 2, bounds.width - 4, bounds.height - 4);
+            shapeRenderer.rect(innerX, innerY, innerW, innerH);
         }
     }
 

@@ -36,21 +36,26 @@ public class Brick {
         this.type = type;
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
+    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         if (!destroyed) {
+            shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
+            shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
+
             shapeRenderer.setColor(color);
             shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-            // Draw bomb indicator (X mark)
             if (type == Type.BOMB) {
-                shapeRenderer.setColor(Color.BLACK);
                 float centerX = bounds.x + bounds.width / 2f;
                 float centerY = bounds.y + bounds.height / 2f;
                 float size = 3f;
 
-                // Draw X with small rectangles
-                shapeRenderer.rect(centerX - size, centerY - 1f, size * 2, 2f);
-                shapeRenderer.rect(centerX - 1f, centerY - size, 2f, size * 2);
+                shapeRenderer.setColor(0f, 0f, 0f, 0.45f);
+                shapeRenderer.rect(centerX - size + shadowOffsetX, centerY - 1f + shadowOffsetY, size * 2f, 2f);
+                shapeRenderer.rect(centerX - 1f + shadowOffsetX, centerY - size + shadowOffsetY, 2f, size * 2f);
+
+                shapeRenderer.setColor(Color.BLACK);
+                shapeRenderer.rect(centerX - size, centerY - 1f, size * 2f, 2f);
+                shapeRenderer.rect(centerX - 1f, centerY - size, 2f, size * 2f);
             }
         }
     }

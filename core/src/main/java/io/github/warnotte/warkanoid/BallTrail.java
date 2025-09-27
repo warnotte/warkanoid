@@ -3,6 +3,7 @@ package io.github.warnotte.warkanoid;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.MathUtils;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +25,14 @@ public class BallTrail {
     private float trailSpacing;
     private Color trailColor;
     private int maxTrailPoints;
+    private float lifetimeMultiplier;
+    private float sizeMultiplier;
+    private float spacingMultiplier;
+    private final Color renderColor = new Color();
+    private final Color shadowColor = new Color(0f, 0f, 0f, 1f);
+    private float baseTrailLifetime;
+    private float baseTrailSpacing;
+    private int baseMaxTrailPoints;
 
     public BallTrail() {
         this.trailPoints = new ArrayList<>();
@@ -31,27 +40,35 @@ public class BallTrail {
         this.trailSpacing = 3f; // Closer trail points for smoother effect
         this.trailColor = new Color(Color.WHITE);
         this.maxTrailPoints = 30; // More trail points for smoother trail
+        this.baseTrailLifetime = trailLifetime;
+        this.baseTrailSpacing = trailSpacing;
+        this.baseMaxTrailPoints = maxTrailPoints;
+        this.lifetimeMultiplier = 1f;
+        this.sizeMultiplier = 1f;
+        this.spacingMultiplier = 1f;
     }
 
     public void addPoint(float x, float y) {
-        // Only add if far enough from last point
+        float spacing = baseTrailSpacing / MathUtils.clamp(spacingMultiplier, 0.5f, 2.5f);
+        if (spacing < 0.5f) spacing = 0.5f;
+
         if (trailPoints.isEmpty() ||
-            trailPoints.get(trailPoints.size() - 1).position.dst(x, y) >= trailSpacing) {
+            trailPoints.get(trailPoints.size() - 1).position.dst(x, y) >= spacing) {
 
             trailPoints.add(new TrailPoint(x, y));
 
-            // Remove excess points
-            while (trailPoints.size() > maxTrailPoints) {
+            int maxPoints = Math.max(5, Math.round(baseMaxTrailPoints * MathUtils.clamp(lifetimeMultiplier, 0.4f, 3f)));
+            while (trailPoints.size() > maxPoints) {
                 trailPoints.remove(0);
             }
         }
     }
 
     public void update(float deltaTime) {
-        // Update trail points life and alpha
+        float lifetime = Math.max(0.1f, baseTrailLifetime * MathUtils.clamp(lifetimeMultiplier, 0.2f, 3f));
         for (int i = trailPoints.size() - 1; i >= 0; i--) {
             TrailPoint point = trailPoints.get(i);
-            point.life -= deltaTime / trailLifetime;
+            point.life -= deltaTime / lifetime;
             point.alpha = point.life;
 
             if (point.life <= 0) {
@@ -60,21 +77,31 @@ public class BallTrail {
         }
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
+    public void style(float lengthFactor, float sizeFactor, Color color) {
+        this.lifetimeMultiplier = MathUtils.clamp(lengthFactor, 0.2f, 3f);
+        this.sizeMultiplier = MathUtils.clamp(sizeFactor, 0.3f, 2.5f);
+        this.spacingMultiplier = MathUtils.clamp(lengthFactor, 0.5f, 2.5f);
+        if (color != null) {
+            this.trailColor.set(color);
+        }
+    }
+
+    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         if (trailPoints.isEmpty()) return;
 
-        // Draw trail as circles with decreasing size and alpha
         for (int i = 0; i < trailPoints.size(); i++) {
             TrailPoint point = trailPoints.get(i);
-
-            // Calculate size based on position in trail (older = smaller)
             float progress = (float)i / Math.max(1, trailPoints.size() - 1);
-            float size = 3f + progress * 5f; // 3-8 pixels, larger for newer points
+            float size = (3f + progress * 5f) * MathUtils.clamp(sizeMultiplier, 0.4f, 2.5f);
+            float alpha = MathUtils.clamp(point.alpha * 0.9f, 0f, 1f);
 
-            // Set color with fading alpha (more opaque)
-            trailColor.a = point.alpha * 0.9f; // Less transparent
-            shapeRenderer.setColor(trailColor);
+            shadowColor.a = alpha * 0.55f;
+            shapeRenderer.setColor(shadowColor);
+            shapeRenderer.circle(point.position.x + shadowOffsetX, point.position.y + shadowOffsetY, size * 1.05f);
 
+            renderColor.set(trailColor);
+            renderColor.a = alpha;
+            shapeRenderer.setColor(renderColor);
             shapeRenderer.circle(point.position.x, point.position.y, size);
         }
     }

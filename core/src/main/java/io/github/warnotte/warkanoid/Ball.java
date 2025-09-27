@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Circle;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.MathUtils;
 
 public class Ball {
     private Circle bounds;
@@ -12,6 +13,9 @@ public class Ball {
     private float speed;
     private BallTrail trail;
     private float stickyOffsetX; // Offset from paddle center when stuck
+    private final Color baseTrailColor = new Color(Color.WHITE);
+    private final Color trailTint = new Color(Color.WHITE);
+    private final Color ballColor = new Color(Color.WHITE);
 
     public Ball(float x, float y, float radius) {
         this.bounds = new Circle(x, y, radius);
@@ -63,12 +67,13 @@ public class Ball {
         return bounds.y - bounds.radius < 0;
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
-        // Render trail first (behind ball)
-        trail.render(shapeRenderer);
+    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
+        trail.render(shapeRenderer, shadowOffsetX, shadowOffsetY);
 
-        // Render ball
-        shapeRenderer.setColor(Color.WHITE);
+        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
+        shapeRenderer.circle(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.radius);
+
+        shapeRenderer.setColor(ballColor);
         shapeRenderer.circle(bounds.x, bounds.y, bounds.radius);
     }
 
@@ -188,8 +193,30 @@ public class Ball {
         trail.clear();
     }
 
+    public void updateTrailStyle(float comboFactor) {
+        float speed = velocity.len();
+        float speedNorm = MathUtils.clamp(speed / 450f, 0f, 1.5f);
+        float comboNorm = MathUtils.clamp(comboFactor, 0f, 2f);
+
+        float lengthFactor = 0.6f + speedNorm * 0.9f + comboNorm * 0.6f;
+        float sizeFactor = 0.7f + speedNorm * 0.6f + comboNorm * 0.4f;
+
+        trailTint.set(baseTrailColor);
+        if (comboNorm > 0f) {
+            trailTint.lerp(Color.ORANGE, MathUtils.clamp(comboNorm * 0.5f, 0f, 1f));
+        }
+        if (speedNorm > 0f) {
+            trailTint.lerp(Color.RED, MathUtils.clamp(speedNorm * 0.35f, 0f, 1f));
+        }
+
+        trail.style(lengthFactor, sizeFactor, trailTint);
+        ballColor.set(trailTint).lerp(Color.WHITE, 0.25f);
+    }
+
     public void setTrailColor(Color color) {
+        baseTrailColor.set(color);
         trail.setColor(color);
+        ballColor.set(color);
     }
 
     public void setStickyOffset(float offsetX) {

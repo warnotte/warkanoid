@@ -69,6 +69,8 @@ public class Main extends ApplicationAdapter {
             "}\n";
     public static final int GAME_WIDTH = 800;
     public static final int GAME_HEIGHT = 600;
+    private static final float SHADOW_OFFSET_X = 3f;
+    private static final float SHADOW_OFFSET_Y = -3f;
 
     private ShapeRenderer shapeRenderer;
     private SpriteBatch spriteBatch;
@@ -259,42 +261,44 @@ public class Main extends ApplicationAdapter {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         // Draw walls (white borders)
+        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
+        shapeRenderer.rect(SHADOW_OFFSET_X, SHADOW_OFFSET_Y, 5f, GAME_HEIGHT);
+        shapeRenderer.rect(GAME_WIDTH - 5f + SHADOW_OFFSET_X, SHADOW_OFFSET_Y, 5f, GAME_HEIGHT);
+        shapeRenderer.rect(SHADOW_OFFSET_X, GAME_HEIGHT - 5f + SHADOW_OFFSET_Y, GAME_WIDTH, 5f);
+
         shapeRenderer.setColor(Color.WHITE);
         shapeRenderer.rect(0, 0, 5f, GAME_HEIGHT);
         shapeRenderer.rect(GAME_WIDTH - 5f, 0, 5f, GAME_HEIGHT);
         shapeRenderer.rect(0, GAME_HEIGHT - 5f, GAME_WIDTH, 5f);
 
-        // Draw paddle (white)
-        shapeRenderer.setColor(Color.WHITE);
-        paddle.render(shapeRenderer);
+        paddle.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
 
-        // Draw balls (white)
-        shapeRenderer.setColor(Color.WHITE);
         for (Ball ball : balls) {
-            ball.render(shapeRenderer);
+            ball.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
 
-        // Draw bricks
         for (Brick brick : bricks) {
-            brick.render(shapeRenderer);
+            brick.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
 
-        // Draw power-ups
         for (PowerUp powerUp : powerUps) {
-            powerUp.render(shapeRenderer);
+            powerUp.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
 
-        // Draw particles
         for (Particle particle : particles) {
-            particle.render(shapeRenderer);
+            particle.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
 
-        // Draw lasers
         for (Laser laser : lasers) {
-            laser.render(shapeRenderer);
+            laser.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
 
-        // Draw lives indicator (small circles in bottom right)
+        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
+        for (int i = 0; i < lives; i++) {
+            float x = GAME_WIDTH - 30f - (i * 20f);
+            float y = 15f;
+            shapeRenderer.circle(x + SHADOW_OFFSET_X, y + SHADOW_OFFSET_Y, 6f);
+        }
         shapeRenderer.setColor(Color.WHITE);
         for (int i = 0; i < lives; i++) {
             float x = GAME_WIDTH - 30f - (i * 20f);
@@ -431,13 +435,6 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        if (comboCount > 0) {
-            comboTimer -= deltaTime;
-            if (comboTimer <= 0f) {
-                comboCount = 0;
-                comboTimer = 0f;
-            }
-        }
 
         // Update paddle movement (mouse has priority over keyboard)
         if (Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
@@ -480,6 +477,8 @@ public class Main extends ApplicationAdapter {
             laserCooldown -= deltaTime;
         }
 
+        float comboIntensity = comboCount > 0 ? MathUtils.clamp(comboCount / 6f, 0f, 2f) : 0f;
+
         // Handle SPACE key based on paddle mode
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
             if (paddle.isLaser() && laserCooldown <= 0) {
@@ -510,6 +509,7 @@ public class Main extends ApplicationAdapter {
             // Only follow paddle with the first ball if not launched
             Ball firstBall = balls.get(0);
             firstBall.followPaddle(paddle);
+            firstBall.updateTrailStyle(comboIntensity);
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
                 firstBall.launch();
                 if (startSound != null) {
@@ -524,17 +524,19 @@ public class Main extends ApplicationAdapter {
         for (int i = balls.size() - 1; i >= 0; i--) {
             Ball ball = balls.get(i);
 
-            // If this ball is stuck to paddle, make it follow paddle
             if (stickyBalls.contains(ball)) {
                 ball.followPaddle(paddle);
+                ball.updateTrailStyle(comboIntensity);
             } else {
                 updateBallWithCollisions(ball, deltaTime);
 
-                // Remove balls that are out of bounds
                 if (ball.isOutOfBounds(GAME_HEIGHT)) {
-                    stickyBalls.remove(ball); // Remove from sticky list if present
+                    stickyBalls.remove(ball);
                     balls.remove(i);
+                    continue;
                 }
+
+                ball.updateTrailStyle(comboIntensity);
             }
         }
 
@@ -953,3 +955,11 @@ public class Main extends ApplicationAdapter {
         }
     }
 }
+
+
+
+
+
+
+
+

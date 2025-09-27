@@ -62,42 +62,52 @@ public class Paddle {
         if (bounds.x + bounds.width > gameWidth) bounds.x = gameWidth - bounds.width;
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
-        // Set paddle color based on mode
+    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
+        shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
+        shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
+
+        Color bodyColor;
         switch (mode) {
-            case NORMAL:
-                shapeRenderer.setColor(Color.WHITE);
-                break;
             case STICKY:
-                shapeRenderer.setColor(Color.GREEN);
+                bodyColor = Color.GREEN;
                 break;
             case LASER:
-                shapeRenderer.setColor(Color.RED);
+                bodyColor = Color.RED;
+                break;
+            case NORMAL:
+            default:
+                bodyColor = Color.WHITE;
                 break;
         }
-
-        // Draw main paddle
+        shapeRenderer.setColor(bodyColor);
         shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-        // Add mode-specific visual indicators
         if (mode == Mode.LASER) {
-            // Draw laser cannon barrels
-            shapeRenderer.setColor(Color.CYAN);
             float barrelWidth = 3f;
             float barrelHeight = 8f;
-            // Left barrel
-            shapeRenderer.rect(bounds.x + bounds.width * 0.25f - barrelWidth/2,
-                             bounds.y + bounds.height, barrelWidth, barrelHeight);
-            // Right barrel
-            shapeRenderer.rect(bounds.x + bounds.width * 0.75f - barrelWidth/2,
-                             bounds.y + bounds.height, barrelWidth, barrelHeight);
+            float leftX = bounds.x + bounds.width * 0.25f - barrelWidth / 2f;
+            float rightX = bounds.x + bounds.width * 0.75f - barrelWidth / 2f;
+            float barrelY = bounds.y + bounds.height;
+
+            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
+            shapeRenderer.rect(leftX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
+            shapeRenderer.rect(rightX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
+
+            shapeRenderer.setColor(Color.CYAN);
+            shapeRenderer.rect(leftX, barrelY, barrelWidth, barrelHeight);
+            shapeRenderer.rect(rightX, barrelY, barrelWidth, barrelHeight);
         } else if (mode == Mode.STICKY) {
-            // Draw sticky indicator dots
-            shapeRenderer.setColor(Color.YELLOW);
+            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
             float dotSize = 2f;
+            float dotY = bounds.y + bounds.height - 3f;
             for (int i = 0; i < 5; i++) {
-                float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize/2;
-                shapeRenderer.rect(x, bounds.y + bounds.height - 3f, dotSize, dotSize);
+                float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
+                shapeRenderer.rect(x + shadowOffsetX, dotY + shadowOffsetY, dotSize, dotSize);
+            }
+            shapeRenderer.setColor(Color.YELLOW);
+            for (int i = 0; i < 5; i++) {
+                float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
+                shapeRenderer.rect(x, dotY, dotSize, dotSize);
             }
         }
     }
