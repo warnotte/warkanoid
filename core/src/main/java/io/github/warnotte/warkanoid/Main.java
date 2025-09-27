@@ -11,7 +11,9 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -75,6 +77,14 @@ public class Main extends ApplicationAdapter {
     private ShaderProgram crtShader;
     private Matrix4 screenMatrix;
     private float shaderTime;
+    private Texture pixelTexture;
+    private GlyphLayout glyphLayout;
+    private float screenShakeTime;
+    private float screenShakeDuration;
+    private float screenShakeIntensity;
+    private int comboCount;
+    private int maxCombo;
+    private float comboTimer;
     private Sound startSound;
     private Sound paddleHitSound;
     private Sound brickHitSound;
@@ -119,6 +129,21 @@ public class Main extends ApplicationAdapter {
         font = new BitmapFont(); // Default font
         font.setColor(Color.WHITE);
         font.getData().setScale(1.5f); // Make text bigger
+
+        Pixmap pixelMap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixelMap.setColor(Color.WHITE);
+        pixelMap.fill();
+        pixelTexture = new Texture(pixelMap);
+        pixelMap.dispose();
+
+        glyphLayout = new GlyphLayout();
+
+        screenShakeTime = 0f;
+        screenShakeDuration = 0f;
+        screenShakeIntensity = 0f;
+        comboCount = 0;
+        maxCombo = 0;
+        comboTimer = 0f;
 
         // Setup camera and viewport
         camera = new OrthographicCamera();
@@ -206,6 +231,15 @@ public class Main extends ApplicationAdapter {
 
         update(deltaTime);
 
+        camera.position.set(GAME_WIDTH / 2f, GAME_HEIGHT / 2f, 0f);
+        if (screenShakeTime > 0f && screenShakeDuration > 0f) {
+            float progress = screenShakeTime / screenShakeDuration;
+            float currentIntensity = screenShakeIntensity * progress * progress;
+            camera.position.add(MathUtils.random(-currentIntensity, currentIntensity),
+                                MathUtils.random(-currentIntensity, currentIntensity), 0f);
+        }
+        camera.update();
+
         viewport.apply();
 
         if (frameBuffer == null) {
@@ -274,19 +308,8 @@ public class Main extends ApplicationAdapter {
         spriteBatch.setProjectionMatrix(camera.combined);
         spriteBatch.begin();
 
-        font.draw(spriteBatch, "Score: " + score, 20f, GAME_HEIGHT - 20f);
-
-        if (gameOver) {
-            font.draw(spriteBatch, "GAME OVER", GAME_WIDTH / 2f - 80f, GAME_HEIGHT / 2f + 20f);
-            font.draw(spriteBatch, "Final Score: " + score, GAME_WIDTH / 2f - 100f, GAME_HEIGHT / 2f - 10f);
-            font.draw(spriteBatch, "Press SPACE to restart", GAME_WIDTH / 2f - 140f, GAME_HEIGHT / 2f - 40f);
-        } else if (gameWon) {
-            font.draw(spriteBatch, "VICTORY!", GAME_WIDTH / 2f - 60f, GAME_HEIGHT / 2f + 20f);
-            font.draw(spriteBatch, "Final Score: " + score, GAME_WIDTH / 2f - 100f, GAME_HEIGHT / 2f - 10f);
-            font.draw(spriteBatch, "Press SPACE to restart", GAME_WIDTH / 2f - 140f, GAME_HEIGHT / 2f - 40f);
-        } else if (!ballLaunched && !balls.isEmpty()) {
-            font.draw(spriteBatch, "Press SPACE to launch ball", GAME_WIDTH / 2f - 150f, GAME_HEIGHT / 2f);
-        }
+        renderHud();
+        renderGameStateMessages();
 
         spriteBatch.end();
         frameBuffer.end();
@@ -318,13 +341,102 @@ public class Main extends ApplicationAdapter {
             postProcessBatch.setShader(null);
         }
     }
+
+    private void renderHud() {
+        float panelX = 16f;
+        float panelWidth = 240f;
+        float panelHeight = 90f;
+        float panelY = GAME_HEIGHT - panelHeight - 16f;
+
+        if (pixelTexture != null) {
+            spriteBatch.setColor(0f, 0f, 0f, 0.45f);
+            spriteBatch.draw(pixelTexture, panelX, panelY, panelWidth, panelHeight);
+            spriteBatch.setColor(0f, 0.8f, 1f, 0.25f);
+            spriteBatch.draw(pixelTexture, panelX, panelY + panelHeight - 3f, panelWidth, 3f);
+            spriteBatch.setColor(Color.WHITE);
+        }
+
+        drawTextWithShadow("Score: " + score, panelX + 16f, panelY + panelHeight - 18f);
+        drawTextWithShadow("Lives: " + lives, panelX + 16f, panelY + panelHeight - 44f);
+
+        if (comboCount > 1) {
+            drawTextWithShadow("Combo x" + comboCount, panelX + 16f, panelY + 22f);
+        } else if (maxCombo > 1) {
+            drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
+        }
+
+        drawTextWithShadow("Power-up tests: 1-8", 16f, 36f);
+    }
+
+    private void renderGameStateMessages() {
+        if (gameOver) {
+            drawTextCenteredWithShadow("GAME OVER", GAME_WIDTH / 2f, GAME_HEIGHT / 2f + 28f);
+            drawTextCenteredWithShadow("Final Score: " + score, GAME_WIDTH / 2f, GAME_HEIGHT / 2f);
+            drawTextCenteredWithShadow("Press SPACE to restart", GAME_WIDTH / 2f, GAME_HEIGHT / 2f - 32f);
+        } else if (gameWon) {
+            drawTextCenteredWithShadow("VICTORY!", GAME_WIDTH / 2f, GAME_HEIGHT / 2f + 28f);
+            drawTextCenteredWithShadow("Final Score: " + score, GAME_WIDTH / 2f, GAME_HEIGHT / 2f);
+            drawTextCenteredWithShadow("Press SPACE to restart", GAME_WIDTH / 2f, GAME_HEIGHT / 2f - 32f);
+        } else if (!ballLaunched && !balls.isEmpty()) {
+            drawTextCenteredWithShadow("Press SPACE to launch ball", GAME_WIDTH / 2f, GAME_HEIGHT / 2f);
+        }
+    }
+
+    private void drawTextWithShadow(String text, float x, float y) {
+        font.setColor(0f, 0f, 0f, 0.6f);
+        font.draw(spriteBatch, text, x + 2f, y - 2f);
+        font.setColor(Color.WHITE);
+        font.draw(spriteBatch, text, x, y);
+    }
+
+    private void drawTextCenteredWithShadow(String text, float centerX, float centerY) {
+        if (glyphLayout == null) {
+            glyphLayout = new GlyphLayout();
+        }
+        glyphLayout.setText(font, text);
+        float x = centerX - glyphLayout.width / 2f;
+        float y = centerY + glyphLayout.height / 2f;
+        drawTextWithShadow(text, x, y);
+    }
+
+    private void triggerScreenShake(float duration, float intensity) {
+        screenShakeTime = Math.max(screenShakeTime, duration);
+        screenShakeDuration = Math.max(screenShakeDuration, duration);
+        screenShakeIntensity = Math.max(screenShakeIntensity, intensity);
+    }
+
     private void update(float deltaTime) {
+        if (screenShakeTime > 0f) {
+            screenShakeTime -= deltaTime;
+            if (screenShakeTime <= 0f) {
+                screenShakeTime = 0f;
+                screenShakeDuration = 0f;
+                screenShakeIntensity = 0f;
+            }
+        }
+
+        if (comboCount > 0) {
+            comboTimer -= deltaTime;
+            if (comboTimer <= 0f) {
+                comboCount = 0;
+                comboTimer = 0f;
+            }
+        }
+
         if (gameOver || gameWon) {
             // Check for restart
             if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
                 restartGame();
             }
             return;
+        }
+
+        if (comboCount > 0) {
+            comboTimer -= deltaTime;
+            if (comboTimer <= 0f) {
+                comboCount = 0;
+                comboTimer = 0f;
+            }
         }
 
         // Update paddle movement (mouse has priority over keyboard)
@@ -428,6 +540,8 @@ public class Main extends ApplicationAdapter {
 
         // Check if all balls are lost (lost life)
         if (balls.isEmpty()) {
+            comboCount = 0;
+            comboTimer = 0f;
             lives--;
             if (lives <= 0) {
                 gameOver = true;
@@ -484,18 +598,31 @@ public class Main extends ApplicationAdapter {
             boolean hit = false;
             for (Brick brick : bricks) {
                 if (laser.checkCollisionWithBrick(brick)) {
-                    score += brick.hit() ? brick.getScore() : 0;
+                    if (brickHitSound != null) {
+                        brickHitSound.play();
+                    }
 
-                    // Create particles if brick destroyed
-                    if (brick.isDestroyed()) {
+                    boolean destroyed = brick.hit();
+                    if (destroyed) {
+                        score += brick.getScore();
+                        comboCount++;
+                        comboTimer = 1.5f;
+                        if (comboCount > maxCombo) {
+                            maxCombo = comboCount;
+                        }
+                        triggerScreenShake(brick.isBomb() ? 0.45f : 0.15f, brick.isBomb() ? 14f : 5f);
+
                         createDestructionParticles(brick.getX() + brick.getWidth() / 2f,
-                                                  brick.getY() + brick.getHeight() / 2f,
-                                                  brick.getOriginalColor());
+                                                      brick.getY() + brick.getHeight() / 2f,
+                                                      brick.getOriginalColor());
 
-                        // Check if it was a bomb brick
                         if (brick.isBomb()) {
                             explodeBrick(brick.getX() + brick.getWidth() / 2f,
                                        brick.getY() + brick.getHeight() / 2f);
+                        }
+
+                        if (Math.random() < 0.3) {
+                            dropPowerUp(brick.getX() + brick.getWidth() / 2f, brick.getY());
                         }
                     }
 
@@ -524,6 +651,12 @@ public class Main extends ApplicationAdapter {
     private void restartGame() {
         // Reset game state
         score = 0;
+        comboCount = 0;
+        comboTimer = 0f;
+        maxCombo = 0;
+        screenShakeTime = 0f;
+        screenShakeDuration = 0f;
+        screenShakeIntensity = 0f;
         lives = 3;
         gameOver = false;
         gameWon = false;
@@ -615,10 +748,16 @@ public class Main extends ApplicationAdapter {
                     }
 
                     if (points > 0) {
-                        score += points;
+                    score += points;
+                    comboCount++;
+                    comboTimer = 1.5f;
+                    if (comboCount > maxCombo) {
+                        maxCombo = comboCount;
+                    }
 
                         // Check if brick was destroyed
                         if (brick.isDestroyed()) {
+                            triggerScreenShake(brick.isBomb() ? 0.5f : 0.2f, brick.isBomb() ? 18f : 6f);
                             // Create destruction particles
                             createDestructionParticles(brick.getX() + brick.getWidth() / 2f,
                                                       brick.getY() + brick.getHeight() / 2f,
@@ -743,6 +882,8 @@ public class Main extends ApplicationAdapter {
     private void explodeBrick(float bombX, float bombY) {
         float explosionRadius = 80f; // Explosion radius
 
+        triggerScreenShake(0.45f, 14f);
+
         // Create extra explosion particles
         for (int i = 0; i < 20; i++) {
             particles.add(new Particle(bombX, bombY, Color.ORANGE));
@@ -795,6 +936,9 @@ public class Main extends ApplicationAdapter {
             crtShader.dispose();
         }
         font.dispose();
+        if (pixelTexture != null) {
+            pixelTexture.dispose();
+        }
         if (startSound != null) {
             startSound.dispose();
         }
