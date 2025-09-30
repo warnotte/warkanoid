@@ -69,8 +69,8 @@ public class Main extends ApplicationAdapter {
             "}\n";
     public static final int GAME_WIDTH = 800;
     public static final int GAME_HEIGHT = 600;
-    private static final float SHADOW_OFFSET_X = 3f;
-    private static final float SHADOW_OFFSET_Y = -3f;
+    private static final float SHADOW_OFFSET_X = 15f;
+    private static final float SHADOW_OFFSET_Y = -15f;
 
     private ShapeRenderer shapeRenderer;
     private SpriteBatch spriteBatch;
@@ -567,12 +567,6 @@ public class Main extends ApplicationAdapter {
             laser.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
 
-        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
-        for (int i = 0; i < lives; i++) {
-            float x = GAME_WIDTH - 30f - (i * 20f);
-            float y = 15f;
-            shapeRenderer.circle(x + SHADOW_OFFSET_X, y + SHADOW_OFFSET_Y, 6f);
-        }
         shapeRenderer.setColor(Color.WHITE);
         for (int i = 0; i < lives; i++) {
             float x = GAME_WIDTH - 30f - (i * 20f);

@@ -49,8 +49,6 @@ public class Particle {
 
     public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         if (life > 0) {
-            shapeRenderer.setColor(0f, 0f, 0f, color.a * 0.6f);
-            shapeRenderer.circle(position.x + shadowOffsetX, position.y + shadowOffsetY, size * 1.05f);
             shapeRenderer.setColor(color);
             shapeRenderer.circle(position.x, position.y, size);
         }
