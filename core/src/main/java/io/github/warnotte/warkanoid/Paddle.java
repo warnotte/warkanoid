@@ -11,16 +11,23 @@ public class Paddle {
         LASER
     }
 
+    // Mode colors - centralized for consistency
+    public static final Color COLOR_NORMAL = Color.WHITE;
+    public static final Color COLOR_STICKY = Color.GREEN;
+    public static final Color COLOR_LASER = Color.RED;
+
     private Rectangle bounds;
     private float speed;
     private Mode mode;
     private float modeTimer; // Timer for automatic mode reset
+    private float initialModeTimer; // Store initial duration for progress calculation
 
     public Paddle(float x, float y, float width, float height) {
         this.bounds = new Rectangle(x, y, width, height);
         this.speed = 300f; // pixels per second
         this.mode = Mode.NORMAL;
         this.modeTimer = 0f;
+        this.initialModeTimer = 0f;
     }
 
     public void update(float deltaTime, float gameWidth) {
@@ -66,19 +73,7 @@ public class Paddle {
         shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
         shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
 
-        Color bodyColor;
-        switch (mode) {
-            case STICKY:
-                bodyColor = Color.GREEN;
-                break;
-            case LASER:
-                bodyColor = Color.RED;
-                break;
-            case NORMAL:
-            default:
-                bodyColor = Color.WHITE;
-                break;
-        }
+        Color bodyColor = getModeColor();
         shapeRenderer.setColor(bodyColor);
         shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
@@ -109,6 +104,23 @@ public class Paddle {
                 float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
                 shapeRenderer.rect(x, dotY, dotSize, dotSize);
             }
+        }
+
+        // Draw power-up timer bar below paddle
+        if (mode != Mode.NORMAL && modeTimer > 0) {
+            float barHeight = 3f;
+            float barY = bounds.y - barHeight - 2f;
+            float barWidth = bounds.width;
+
+            // Background bar (dark)
+            shapeRenderer.setColor(0f, 0f, 0f, 0.5f);
+            shapeRenderer.rect(bounds.x + shadowOffsetX, barY + shadowOffsetY, barWidth, barHeight);
+
+            // Progress bar (colored based on mode)
+            float progress = modeTimer / getInitialModeTimer();
+            float progressWidth = barWidth * progress;
+            shapeRenderer.setColor(bodyColor);
+            shapeRenderer.rect(bounds.x, barY, progressWidth, barHeight);
         }
     }
 
@@ -152,11 +164,13 @@ public class Paddle {
     public void setMode(Mode newMode, float duration) {
         this.mode = newMode;
         this.modeTimer = duration;
+        this.initialModeTimer = duration;
     }
 
     public void setMode(Mode newMode) {
         this.mode = newMode;
         this.modeTimer = 0f; // Permanent until changed
+        this.initialModeTimer = 0f;
     }
 
     public boolean isSticky() {
@@ -169,5 +183,21 @@ public class Paddle {
 
     public float getModeTimer() {
         return modeTimer;
+    }
+
+    private float getInitialModeTimer() {
+        return initialModeTimer;
+    }
+
+    private Color getModeColor() {
+        switch (mode) {
+            case STICKY:
+                return COLOR_STICKY;
+            case LASER:
+                return COLOR_LASER;
+            case NORMAL:
+            default:
+                return COLOR_NORMAL;
+        }
     }
 }

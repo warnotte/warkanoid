@@ -107,6 +107,7 @@ public class Main extends ApplicationAdapter {
     private boolean gameOver;
     private boolean gameWon;
     private boolean ballLaunched;
+    private int currentLevel;
 
     @Override
     public void create() {
@@ -184,15 +185,16 @@ public class Main extends ApplicationAdapter {
         // Initialize sticky balls
         stickyBalls = new ArrayList<>();
 
-        // Create bricks
-        createBricks();
-
         // Initialize game state
         score = 0;
         lives = 3;
         gameOver = false;
         gameWon = false;
         ballLaunched = false;
+        currentLevel = 1;
+
+        // Create bricks for level 1
+        loadLevel(currentLevel);
     }
 
     private void createBricks() {
@@ -429,7 +431,7 @@ public class Main extends ApplicationAdapter {
 
         if (gameOver || gameWon) {
             // Check for restart
-            if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+            if (Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.justTouched()) {
                 restartGame();
             }
             return;
@@ -479,8 +481,8 @@ public class Main extends ApplicationAdapter {
 
         float comboIntensity = comboCount > 0 ? MathUtils.clamp(comboCount / 6f, 0f, 2f) : 0f;
 
-        // Handle SPACE key based on paddle mode
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+        // Handle SPACE key or mouse click based on paddle mode
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched()) {
             if (paddle.isLaser() && laserCooldown <= 0) {
                 // Shoot twin lasers from paddle (like original Arkanoid)
                 float laserY = paddle.getY() + paddle.getHeight();
@@ -510,7 +512,7 @@ public class Main extends ApplicationAdapter {
             Ball firstBall = balls.get(0);
             firstBall.followPaddle(paddle);
             firstBall.updateTrailStyle(comboIntensity);
-            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched()) {
                 firstBall.launch();
                 if (startSound != null) {
                     startSound.play();

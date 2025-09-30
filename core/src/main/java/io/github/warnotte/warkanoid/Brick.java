@@ -7,7 +7,8 @@ import com.badlogic.gdx.math.Rectangle;
 public class Brick {
     public enum Type {
         NORMAL,
-        BOMB
+        BOMB,
+        INDESTRUCTIBLE
     }
 
     private Rectangle bounds;
@@ -56,11 +57,34 @@ public class Brick {
                 shapeRenderer.setColor(Color.BLACK);
                 shapeRenderer.rect(centerX - size, centerY - 1f, size * 2f, 2f);
                 shapeRenderer.rect(centerX - 1f, centerY - size, 2f, size * 2f);
+            } else if (type == Type.INDESTRUCTIBLE) {
+                // Draw diagonal stripes for indestructible bricks
+                shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1f);
+                float stripeWidth = 2f;
+                for (float offset = -bounds.height; offset < bounds.width; offset += 6f) {
+                    float x1 = bounds.x + offset;
+                    float y1 = bounds.y + bounds.height;
+                    float x2 = bounds.x + offset + bounds.height;
+                    float y2 = bounds.y;
+
+                    // Clamp to brick bounds
+                    if (x1 < bounds.x) { y1 -= (bounds.x - x1); x1 = bounds.x; }
+                    if (x2 > bounds.x + bounds.width) { y2 += (x2 - bounds.x - bounds.width); x2 = bounds.x + bounds.width; }
+
+                    if (x2 > x1) {
+                        shapeRenderer.rectLine(x1, y1, x2, y2, stripeWidth);
+                    }
+                }
             }
         }
     }
 
     public boolean hit() {
+        // Indestructible bricks cannot be destroyed
+        if (type == Type.INDESTRUCTIBLE) {
+            return false;
+        }
+
         hits++;
         if (hits >= maxHits) {
             destroyed = true;
@@ -129,5 +153,9 @@ public class Brick {
 
     public boolean isBomb() {
         return type == Type.BOMB;
+    }
+
+    public boolean isIndestructible() {
+        return type == Type.INDESTRUCTIBLE;
     }
 }
