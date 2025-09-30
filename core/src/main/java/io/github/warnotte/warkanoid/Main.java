@@ -108,8 +108,28 @@ public class Main extends ApplicationAdapter {
     private boolean gameWon;
     private boolean ballLaunched;
     private int currentLevel;
-    private static boolean USE_CONTINUOUS_COLLISION = true; // Toggle with F7
+    private enum CollisionMode {
+        DISCRETE("DISCRETE (OLD)"),
+        CONTINUOUS("CONTINUOUS (CCD)"),
+        ROBUST("ROBUST (HYBRID)");
 
+        private final String label;
+
+        CollisionMode(String label) {
+            this.label = label;
+        }
+
+        public CollisionMode next() {
+            CollisionMode[] modes = values();
+            return modes[(ordinal() + 1) % modes.length];
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
+    private static CollisionMode collisionMode = CollisionMode.CONTINUOUS; // Toggle with F7
     @Override
     public void create() {
         shapeRenderer = new ShapeRenderer();
@@ -624,11 +644,10 @@ public class Main extends ApplicationAdapter {
             drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
         }
 
-        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision", 16f, 36f);
+        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision Mode", 16f, 36f);
 
         // Show collision mode
-        String collisionMode = USE_CONTINUOUS_COLLISION ? "CCD" : "OLD";
-        drawTextWithShadow("Collision: " + collisionMode, GAME_WIDTH - 120f, 36f);
+        drawTextWithShadow("Collision: " + collisionMode.getLabel(), GAME_WIDTH - 160f, 36f);
     }
 
     private void renderGameStateMessages() {
@@ -727,8 +746,8 @@ public class Main extends ApplicationAdapter {
 
         // Toggle collision detection mode with F7
         if (Gdx.input.isKeyJustPressed(Input.Keys.F7)) {
-            USE_CONTINUOUS_COLLISION = !USE_CONTINUOUS_COLLISION;
-            System.out.println("Collision mode: " + (USE_CONTINUOUS_COLLISION ? "CONTINUOUS (CCD)" : "DISCRETE (OLD)"));
+            collisionMode = collisionMode.next();
+            System.out.println("Collision mode: " + collisionMode.getLabel());
         }
 
         // Check for cheat keys (testing power-ups)
@@ -1064,12 +1083,21 @@ public class Main extends ApplicationAdapter {
                 int hitsBefore = brick.getHits();
                 boolean wasDestroyed = brick.isDestroyed();
 
-                // Use swept collision if enabled, otherwise use old discrete collision
+                // Choose collision method based on selected collision mode
                 int points;
-                if (USE_CONTINUOUS_COLLISION) {
-                    points = ball.checkCollisionWithBrickSwept(brick, prevX, prevY);
-                } else {
-                    points = ball.checkCollisionWithBrick(brick);
+                switch (collisionMode) {
+                    case DISCRETE:
+                        points = ball.checkCollisionWithBrick(brick);
+                        break;
+                    case CONTINUOUS:
+                        points = ball.checkCollisionWithBrickSwept(brick, prevX, prevY);
+                        break;
+                    case ROBUST:
+                        points = ball.checkCollisionWithBrickRobust(brick, prevX, prevY);
+                        break;
+                    default:
+                        points = ball.checkCollisionWithBrick(brick);
+                        break;
                 }
 
                 int hitsAfter = brick.getHits();
@@ -1287,11 +1315,3 @@ public class Main extends ApplicationAdapter {
         }
     }
 }
-
-
-
-
-
-
-
-
