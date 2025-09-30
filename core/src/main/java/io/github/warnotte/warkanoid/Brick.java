@@ -39,6 +39,7 @@ public class Brick {
 
     public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         if (!destroyed) {
+            // Drop shadow hinted to the bottom-right like the arcade original
             shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
             shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
 
