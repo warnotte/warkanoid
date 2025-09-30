@@ -108,6 +108,7 @@ public class Main extends ApplicationAdapter {
     private boolean gameWon;
     private boolean ballLaunched;
     private int currentLevel;
+    private static boolean USE_CONTINUOUS_COLLISION = true; // Toggle with F7
 
     @Override
     public void create() {
@@ -623,7 +624,11 @@ public class Main extends ApplicationAdapter {
             drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
         }
 
-        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6", 16f, 36f);
+        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision", 16f, 36f);
+
+        // Show collision mode
+        String collisionMode = USE_CONTINUOUS_COLLISION ? "CCD" : "OLD";
+        drawTextWithShadow("Collision: " + collisionMode, GAME_WIDTH - 120f, 36f);
     }
 
     private void renderGameStateMessages() {
@@ -718,6 +723,12 @@ public class Main extends ApplicationAdapter {
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F6)) {
             switchLevel(6);
+        }
+
+        // Toggle collision detection mode with F7
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F7)) {
+            USE_CONTINUOUS_COLLISION = !USE_CONTINUOUS_COLLISION;
+            System.out.println("Collision mode: " + (USE_CONTINUOUS_COLLISION ? "CONTINUOUS (CCD)" : "DISCRETE (OLD)"));
         }
 
         // Check for cheat keys (testing power-ups)
@@ -1005,6 +1016,10 @@ public class Main extends ApplicationAdapter {
         float stepY = (ball.getVelocity().y * deltaTime) / steps;
 
         for (int i = 0; i < steps; i++) {
+            // Store previous position for swept collision
+            float prevX = ball.getX();
+            float prevY = ball.getY();
+
             // Move ball one step
             ball.setPosition(ball.getX() + stepX, ball.getY() + stepY);
 
@@ -1049,7 +1064,14 @@ public class Main extends ApplicationAdapter {
                 int hitsBefore = brick.getHits();
                 boolean wasDestroyed = brick.isDestroyed();
 
-                int points = ball.checkCollisionWithBrick(brick);
+                // Use swept collision if enabled, otherwise use old discrete collision
+                int points;
+                if (USE_CONTINUOUS_COLLISION) {
+                    points = ball.checkCollisionWithBrickSwept(brick, prevX, prevY);
+                } else {
+                    points = ball.checkCollisionWithBrick(brick);
+                }
+
                 int hitsAfter = brick.getHits();
                 boolean isDestroyed = brick.isDestroyed();
                 boolean collided = hitsAfter != hitsBefore || wasDestroyed != isDestroyed;

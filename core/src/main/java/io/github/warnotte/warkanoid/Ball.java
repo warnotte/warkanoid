@@ -148,6 +148,7 @@ public class Ball {
         return checkCollisionWithPaddle(paddle, false);
     }
 
+    // OLD DISCRETE COLLISION - kept for comparison
     public int checkCollisionWithBrick(Brick brick) {
         if (!brick.isDestroyed() && Intersector.overlaps(bounds, brick.getBounds())) {
             boolean destroyed = brick.hit();
@@ -174,6 +175,124 @@ public class Ball {
             return destroyed ? brick.getScore() : 0;
         }
         return 0;
+    }
+
+    // NEW CONTINUOUS COLLISION DETECTION (Swept Circle-AABB)
+    public int checkCollisionWithBrickSwept(Brick brick, float prevX, float prevY) {
+        if (brick.isDestroyed()) {
+            return 0;
+        }
+
+        // Note: Indestructible bricks still need collision response, just don't take damage
+
+        // Expand brick by ball radius to treat ball as a point
+        float expandedLeft = brick.getX() - bounds.radius;
+        float expandedRight = brick.getX() + brick.getWidth() + bounds.radius;
+        float expandedBottom = brick.getY() - bounds.radius;
+        float expandedTop = brick.getY() + brick.getHeight() + bounds.radius;
+
+        // Ray from previous position to current position
+        float dx = bounds.x - prevX;
+        float dy = bounds.y - prevY;
+
+        // Check if ray intersects expanded AABB
+        float tNear = Float.NEGATIVE_INFINITY;
+        float tFar = Float.POSITIVE_INFINITY;
+
+        // X axis slab
+        if (Math.abs(dx) < 0.0001f) {
+            // Ray parallel to X axis
+            if (prevX < expandedLeft || prevX > expandedRight) {
+                return 0; // No collision possible
+            }
+        } else {
+            float t1 = (expandedLeft - prevX) / dx;
+            float t2 = (expandedRight - prevX) / dx;
+            if (t1 > t2) { float temp = t1; t1 = t2; t2 = temp; }
+            tNear = Math.max(tNear, t1);
+            tFar = Math.min(tFar, t2);
+            if (tNear > tFar) return 0;
+        }
+
+        // Y axis slab
+        if (Math.abs(dy) < 0.0001f) {
+            // Ray parallel to Y axis
+            if (prevY < expandedBottom || prevY > expandedTop) {
+                return 0; // No collision possible
+            }
+        } else {
+            float t1 = (expandedBottom - prevY) / dy;
+            float t2 = (expandedTop - prevY) / dy;
+            if (t1 > t2) { float temp = t1; t1 = t2; t2 = temp; }
+            tNear = Math.max(tNear, t1);
+            tFar = Math.min(tFar, t2);
+            if (tNear > tFar) return 0;
+        }
+
+        // Check if collision happened during this frame (t in [0, 1])
+        if (tNear > 1.0f || tFar < 0.0f) {
+            return 0; // No collision this frame
+        }
+
+        // Ignore collisions that are too close to start (already overlapping/just separated)
+        float minT = 0.001f; // Minimum t to consider a valid collision
+        if (tNear < minT) {
+            return 0; // Too close, ignore to prevent multiple hits
+        }
+
+        // Collision occurred!
+        float collisionT = tNear;
+
+        // Calculate collision point
+        float collisionX = prevX + dx * collisionT;
+        float collisionY = prevY + dy * collisionT;
+
+        // Determine which face was hit based on collision point
+        boolean hitVertical = false;
+        boolean hitHorizontal = false;
+
+        float epsilon = 0.1f;
+        if (Math.abs(collisionX - expandedLeft) < epsilon || Math.abs(collisionX - expandedRight) < epsilon) {
+            hitVertical = true;
+        }
+        if (Math.abs(collisionY - expandedBottom) < epsilon || Math.abs(collisionY - expandedTop) < epsilon) {
+            hitHorizontal = true;
+        }
+
+        // Handle corner case - hit both faces
+        if (hitVertical && hitHorizontal) {
+            // Hit a corner - reverse both
+            reverseX();
+            reverseY();
+        } else if (hitVertical) {
+            reverseX();
+        } else if (hitHorizontal) {
+            reverseY();
+        } else {
+            // Default: use overlap method as fallback
+            float brickCenterX = brick.getX() + brick.getWidth() / 2f;
+            float brickCenterY = brick.getY() + brick.getHeight() / 2f;
+            float deltaX = collisionX - brickCenterX;
+            float deltaY = collisionY - brickCenterY;
+
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                reverseX();
+            } else {
+                reverseY();
+            }
+        }
+
+        // Position ball just before collision point by backing up slightly along velocity
+        // This prevents the ball from overlapping with the brick after collision
+        float backupT = Math.max(0.0f, collisionT - 0.01f); // Back up slightly from collision point
+        float safeX = prevX + dx * backupT;
+        float safeY = prevY + dy * backupT;
+
+        bounds.setPosition(safeX, safeY);
+
+        // Hit the brick
+        boolean destroyed = brick.hit();
+        return destroyed ? brick.getScore() : 0;
     }
 
     public void launch() {
