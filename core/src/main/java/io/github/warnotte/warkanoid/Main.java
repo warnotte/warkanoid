@@ -214,6 +214,9 @@ public class Main extends ApplicationAdapter {
             case 5:
                 createLevel5();
                 break;
+            case 6:
+                createLevel6CollisionTest();
+                break;
             default:
                 createLevel1();
                 break;
@@ -415,6 +418,68 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void createLevel6CollisionTest() {
+        bricks = new ArrayList<>();
+        float brickWidth = 70f;
+        float brickHeight = 20f;
+        float spacing = 2f;
+
+        // Test 1: Narrow vertical corridor (left side)
+        for (int i = 0; i < 15; i++) {
+            float y = GAME_HEIGHT - 100f - i * (brickHeight + spacing);
+            bricks.add(new Brick(50f, y, brickWidth, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+            bricks.add(new Brick(50f + brickWidth + 50f, y, brickWidth, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        }
+
+        // Test 2: Spiral pattern (center-right)
+        float centerX = 400f;
+        float centerY = 400f;
+        int spiralBricks = 20;
+        for (int i = 0; i < spiralBricks; i++) {
+            float angle = i * 0.8f;
+            float radius = 30f + i * 8f;
+            float x = centerX + (float)(Math.cos(angle) * radius);
+            float y = centerY + (float)(Math.sin(angle) * radius);
+            bricks.add(new Brick(x, y, 30f, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        }
+
+        // Test 3: Tight zigzag pattern (bottom)
+        float zigzagStartX = 100f;
+        float zigzagY = 200f;
+        for (int i = 0; i < 8; i++) {
+            float offsetY = (i % 2 == 0) ? 0f : 30f;
+            bricks.add(new Brick(zigzagStartX + i * 60f, zigzagY + offsetY, 50f, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        }
+
+        // Test 4: Corners and tight angles (top-right)
+        float cornerX = 600f;
+        float cornerY = GAME_HEIGHT - 100f;
+        // L-shape
+        for (int i = 0; i < 5; i++) {
+            bricks.add(new Brick(cornerX, cornerY - i * (brickHeight + spacing), 60f, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+            bricks.add(new Brick(cornerX + i * 62f, cornerY - 4 * (brickHeight + spacing), 60f, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        }
+
+        // Test 5: Very narrow gap (should be barely passable)
+        float gapY = 300f;
+        bricks.add(new Brick(250f, gapY, 80f, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        bricks.add(new Brick(250f, gapY - (brickHeight + 20f), 80f, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+
+        // Test 6: Box trap (ball can get stuck)
+        float boxX = 500f;
+        float boxY = 250f;
+        float boxSize = 80f;
+        // Top, bottom, left, right
+        bricks.add(new Brick(boxX, boxY + boxSize, boxSize, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        bricks.add(new Brick(boxX, boxY - brickHeight, boxSize, brickHeight, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        bricks.add(new Brick(boxX - brickHeight, boxY, brickHeight, boxSize, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+        bricks.add(new Brick(boxX + boxSize, boxY, brickHeight, boxSize, Color.GRAY, 1, Brick.Type.INDESTRUCTIBLE));
+
+        // Add a few destructible bricks for testing scoring/winning
+        bricks.add(new Brick(350f, 150f, 50f, brickHeight, Color.RED, 1, Brick.Type.NORMAL));
+        bricks.add(new Brick(420f, 150f, 50f, brickHeight, Color.YELLOW, 1, Brick.Type.NORMAL));
+    }
+
     @Override
     public void render() {
         float deltaTime = Gdx.graphics.getDeltaTime();
@@ -558,7 +623,7 @@ public class Main extends ApplicationAdapter {
             drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
         }
 
-        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F5", 16f, 36f);
+        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6", 16f, 36f);
     }
 
     private void renderGameStateMessages() {
@@ -635,7 +700,7 @@ public class Main extends ApplicationAdapter {
             paddle.updateWithMouse(deltaTime, GAME_WIDTH, mousePos.x);
         }
 
-        // Check for level switch keys (F1-F5)
+        // Check for level switch keys (F1-F6)
         if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
             switchLevel(1);
         }
@@ -650,6 +715,9 @@ public class Main extends ApplicationAdapter {
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F5)) {
             switchLevel(5);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F6)) {
+            switchLevel(6);
         }
 
         // Check for cheat keys (testing power-ups)
