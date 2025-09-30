@@ -197,7 +197,30 @@ public class Main extends ApplicationAdapter {
         loadLevel(currentLevel);
     }
 
-    private void createBricks() {
+    private void loadLevel(int level) {
+        switch (level) {
+            case 1:
+                createLevel1();
+                break;
+            case 2:
+                createLevel2();
+                break;
+            case 3:
+                createLevel3();
+                break;
+            case 4:
+                createLevel4();
+                break;
+            case 5:
+                createLevel5();
+                break;
+            default:
+                createLevel1();
+                break;
+        }
+    }
+
+    private void createLevel1() {
         bricks = new ArrayList<>();
         int rows = 6;
         int cols = 10;
@@ -223,6 +246,169 @@ public class Main extends ApplicationAdapter {
                 // 10% chance for bomb brick (but not on easiest rows)
                 boolean isBomb = difficultyIndex >= 2 && Math.random() < 0.1;
                 Brick.Type brickType = isBomb ? Brick.Type.BOMB : Brick.Type.NORMAL;
+
+                bricks.add(new Brick(x, y, brickWidth - 2f, brickHeight, brickColor, maxHits, brickType));
+            }
+        }
+    }
+
+    private void createLevel2() {
+        bricks = new ArrayList<>();
+        int rows = 8;
+        int cols = 10;
+        float brickWidth = (GAME_WIDTH - 100f) / cols;
+        float brickHeight = 20f;
+        float startX = 50f;
+        float startY = GAME_HEIGHT - 100f;
+
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                float x = startX + col * brickWidth;
+                float y = startY - row * (brickHeight + 2f);
+
+                Brick.Type brickType = Brick.Type.NORMAL;
+                Color brickColor;
+                int maxHits = 1;
+
+                // Create a pattern with indestructible bricks forming a cross
+                if ((row == 3 || row == 4) && col >= 3 && col <= 6) {
+                    // Horizontal bar of cross
+                    brickType = Brick.Type.INDESTRUCTIBLE;
+                    brickColor = Color.GRAY;
+                } else if ((col == 4 || col == 5) && row >= 1 && row <= 6) {
+                    // Vertical bar of cross
+                    brickType = Brick.Type.INDESTRUCTIBLE;
+                    brickColor = Color.GRAY;
+                } else {
+                    // Normal bricks in rainbow pattern
+                    Color[] colors = {Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.PURPLE, Color.MAGENTA};
+                    brickColor = colors[row % colors.length];
+                    maxHits = (row < 2) ? 2 : 1;
+
+                    // Add some bomb bricks
+                    if (row >= 5 && Math.random() < 0.15) {
+                        brickType = Brick.Type.BOMB;
+                    }
+                }
+
+                bricks.add(new Brick(x, y, brickWidth - 2f, brickHeight, brickColor, maxHits, brickType));
+            }
+        }
+    }
+
+    private void createLevel3() {
+        bricks = new ArrayList<>();
+        int rows = 8;
+        int cols = 10;
+        float brickWidth = (GAME_WIDTH - 100f) / cols;
+        float brickHeight = 20f;
+        float startX = 50f;
+        float startY = GAME_HEIGHT - 100f;
+
+        // Alternating rows pattern - easier than checkerboard
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                float x = startX + col * brickWidth;
+                float y = startY - row * (brickHeight + 2f);
+
+                // Every other row is indestructible
+                boolean isIndestructible = row % 2 == 0;
+                Color brickColor;
+                Brick.Type brickType;
+                int maxHits;
+
+                if (isIndestructible) {
+                    brickColor = Color.GRAY;
+                    brickType = Brick.Type.INDESTRUCTIBLE;
+                    maxHits = 1;
+                } else {
+                    Color[] colors = {Color.CYAN, Color.BLUE, Color.PURPLE, Color.MAGENTA};
+                    brickColor = colors[row / 2 % colors.length];
+                    maxHits = 1 + (row / 4);
+                    brickType = (Math.random() < 0.1) ? Brick.Type.BOMB : Brick.Type.NORMAL;
+                }
+
+                bricks.add(new Brick(x, y, brickWidth - 2f, brickHeight, brickColor, maxHits, brickType));
+            }
+        }
+    }
+
+    private void createLevel4() {
+        bricks = new ArrayList<>();
+        int rows = 8;
+        int cols = 10;
+        float brickWidth = (GAME_WIDTH - 100f) / cols;
+        float brickHeight = 20f;
+        float startX = 50f;
+        float startY = GAME_HEIGHT - 100f;
+
+        // Frame pattern - indestructible border with opening at bottom
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                float x = startX + col * brickWidth;
+                float y = startY - row * (brickHeight + 2f);
+
+                // Create opening at bottom center (columns 4 and 5)
+                boolean isOpening = (row == rows - 1) && (col == 4 || col == 5);
+                boolean isBorder = (row == 0 || row == rows - 1 || col == 0 || col == cols - 1) && !isOpening;
+
+                Color brickColor;
+                Brick.Type brickType;
+                int maxHits;
+
+                if (isBorder) {
+                    brickColor = Color.GRAY;
+                    brickType = Brick.Type.INDESTRUCTIBLE;
+                    maxHits = 1;
+                } else if (!isOpening) {
+                    // Inside bricks - harder as you go up
+                    Color[] colors = {Color.GREEN, Color.YELLOW, Color.ORANGE, Color.RED};
+                    int colorIndex = Math.min((rows - 1 - row) / 2, colors.length - 1);
+                    brickColor = colors[colorIndex];
+                    maxHits = row < 3 ? 3 : (row < 5 ? 2 : 1);
+                    brickType = (Math.random() < 0.08) ? Brick.Type.BOMB : Brick.Type.NORMAL;
+                } else {
+                    // Skip the opening - don't add a brick here
+                    continue;
+                }
+
+                bricks.add(new Brick(x, y, brickWidth - 2f, brickHeight, brickColor, maxHits, brickType));
+            }
+        }
+    }
+
+    private void createLevel5() {
+        bricks = new ArrayList<>();
+        int rows = 8;
+        int cols = 10;
+        float brickWidth = (GAME_WIDTH - 100f) / cols;
+        float brickHeight = 20f;
+        float startX = 50f;
+        float startY = GAME_HEIGHT - 100f;
+
+        // Columns pattern - vertical stripes
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                float x = startX + col * brickWidth;
+                float y = startY - row * (brickHeight + 2f);
+
+                // Every 3rd column is indestructible
+                boolean isWall = col % 3 == 0;
+
+                Color brickColor;
+                Brick.Type brickType;
+                int maxHits;
+
+                if (isWall) {
+                    brickColor = Color.GRAY;
+                    brickType = Brick.Type.INDESTRUCTIBLE;
+                    maxHits = 1;
+                } else {
+                    Color[] colors = {Color.PURPLE, Color.MAGENTA, Color.PINK, Color.ORANGE};
+                    brickColor = colors[(row + col) % colors.length];
+                    maxHits = 1 + (row / 3);
+                    brickType = (Math.random() < 0.12) ? Brick.Type.BOMB : Brick.Type.NORMAL;
+                }
 
                 bricks.add(new Brick(x, y, brickWidth - 2f, brickHeight, brickColor, maxHits, brickType));
             }
@@ -364,6 +550,7 @@ public class Main extends ApplicationAdapter {
 
         drawTextWithShadow("Score: " + score, panelX + 16f, panelY + panelHeight - 18f);
         drawTextWithShadow("Lives: " + lives, panelX + 16f, panelY + panelHeight - 44f);
+        drawTextWithShadow("Level: " + currentLevel, panelX + 16f, panelY + panelHeight - 70f);
 
         if (comboCount > 1) {
             drawTextWithShadow("Combo x" + comboCount, panelX + 16f, panelY + 22f);
@@ -371,7 +558,7 @@ public class Main extends ApplicationAdapter {
             drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
         }
 
-        drawTextWithShadow("Power-up tests: 1-8", 16f, 36f);
+        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F5", 16f, 36f);
     }
 
     private void renderGameStateMessages() {
@@ -448,6 +635,23 @@ public class Main extends ApplicationAdapter {
             paddle.updateWithMouse(deltaTime, GAME_WIDTH, mousePos.x);
         }
 
+        // Check for level switch keys (F1-F5)
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            switchLevel(1);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
+            switchLevel(2);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+            switchLevel(3);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F4)) {
+            switchLevel(4);
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F5)) {
+            switchLevel(5);
+        }
+
         // Check for cheat keys (testing power-ups)
         if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) {
             applyPowerUp(PowerUp.Type.MULTI_BALL);
@@ -492,15 +696,22 @@ public class Main extends ApplicationAdapter {
                 lasers.add(new Laser(paddle.getX() + paddle.getWidth() * 0.75f, laserY));
                 laserCooldown = 0.3f; // 300ms cooldown
             } else if (paddle.isSticky() && !stickyBalls.isEmpty()) {
-                // Release sticky balls towards mouse cursor
-                com.badlogic.gdx.math.Vector3 mousePos = new com.badlogic.gdx.math.Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
-                camera.unproject(mousePos);
-
+                // Release sticky balls based on their position on paddle
                 for (Ball stickyBall : stickyBalls) {
-                    float angle = (float) Math.atan2(mousePos.y - stickyBall.getY(), mousePos.x - stickyBall.getX());
-                    float speed = 300f;
+                    // Calculate ball's position relative to paddle center
+                    float paddleCenter = paddle.getX() + paddle.getWidth() / 2f;
+                    float ballOffsetFromCenter = stickyBall.getX() - paddleCenter;
 
-                    stickyBall.setVelocity((float)(speed * Math.cos(angle)), (float)(speed * Math.sin(angle)));
+                    // Launch angle based on position: -60° to +60° from vertical
+                    float maxAngle = 60f; // degrees
+                    float angleInDegrees = (ballOffsetFromCenter / (paddle.getWidth() / 2f)) * maxAngle;
+                    float angleInRadians = (float) Math.toRadians(90f - angleInDegrees); // 90° = straight up
+
+                    float speed = 300f;
+                    stickyBall.setVelocity(
+                        (float)(speed * Math.cos(angleInRadians)),
+                        (float)(speed * Math.sin(angleInRadians))
+                    );
                 }
                 stickyBalls.clear(); // Release all balls
             }
@@ -639,10 +850,11 @@ public class Main extends ApplicationAdapter {
             }
         }
 
-        // Check win condition (all bricks destroyed)
+        // Check win condition (all destructible bricks destroyed)
         boolean allDestroyed = true;
         for (Brick brick : bricks) {
-            if (!brick.isDestroyed()) {
+            // Only count destructible bricks for win condition
+            if (!brick.isIndestructible() && !brick.isDestroyed()) {
                 allDestroyed = false;
                 break;
             }
@@ -683,8 +895,36 @@ public class Main extends ApplicationAdapter {
         // Reset paddle to normal mode
         paddle.setMode(Paddle.Mode.NORMAL);
 
-        // Recreate bricks
-        createBricks();
+        // Recreate bricks for current level
+        loadLevel(currentLevel);
+    }
+
+    private void switchLevel(int newLevel) {
+        currentLevel = newLevel;
+
+        // Clear all game objects
+        balls.clear();
+        powerUps.clear();
+        particles.clear();
+        lasers.clear();
+        stickyBalls.clear();
+
+        // Reset paddle
+        paddle.setX(GAME_WIDTH / 2f - 50f);
+        paddle.setWidth(100f);
+        paddle.setMode(Paddle.Mode.NORMAL);
+
+        // Create new ball on paddle
+        Ball newBall = new Ball(paddle.getX() + paddle.getWidth() / 2f,
+                               paddle.getY() + paddle.getHeight() + 8f, 8f);
+        newBall.setTrailColor(Color.CYAN);
+        balls.add(newBall);
+
+        ballLaunched = false;
+        laserCooldown = 0f;
+
+        // Load new level
+        loadLevel(currentLevel);
     }
 
     private void updateBallWithCollisions(Ball ball, float deltaTime) {
@@ -893,9 +1133,9 @@ public class Main extends ApplicationAdapter {
             particles.add(new Particle(bombX, bombY, Color.ORANGE));
         }
 
-        // Destroy nearby bricks
+        // Destroy nearby bricks (except indestructible ones)
         for (Brick brick : bricks) {
-            if (!brick.isDestroyed()) {
+            if (!brick.isDestroyed() && !brick.isIndestructible()) {
                 float brickCenterX = brick.getX() + brick.getWidth() / 2f;
                 float brickCenterY = brick.getY() + brick.getHeight() / 2f;
 
