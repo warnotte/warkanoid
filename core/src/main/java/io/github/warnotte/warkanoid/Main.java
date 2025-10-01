@@ -4,6 +4,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -20,6 +21,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import io.github.warnotte.warkanoid.ui.CrtSettingsOverlay;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,27 +46,38 @@ public class Main extends ApplicationAdapter {
             "uniform sampler2D u_texture;\n" +
             "uniform float u_time;\n" +
             "uniform vec2 u_resolution;\n" +
+            "uniform float u_curvature;\n" +
+            "uniform float u_aberrationBase;\n" +
+            "uniform float u_aberrationStrength;\n" +
+            "uniform float u_scanAmplitude;\n" +
+            "uniform float u_scanFrequency;\n" +
+            "uniform float u_scanSpeed;\n" +
+            "uniform float u_vignetteScale;\n" +
+            "uniform float u_vignettePower;\n" +
+            "uniform float u_vignetteMin;\n" +
+            "uniform float u_vignetteMax;\n" +
+            "uniform float u_noiseAmount;\n" +
+            "uniform float u_noiseSpeed;\n" +
             "void main() {\n" +
             "    vec2 uv = v_texCoords;\n" +
             "    vec2 centered = uv - 0.5;\n" +
             "    float dist = dot(centered, centered);\n" +
-            "    float curvature = 0.12;\n" +
-            "    vec2 curvedUV = centered * (1.0 + curvature * dist) + 0.5;\n" +
+            "    vec2 curvedUV = centered * (1.0 + u_curvature * dist) + 0.5;\n" +
             "    curvedUV = clamp(curvedUV, 0.0, 1.0);\n" +
             "    float radius = length(centered);\n" +
             "    vec2 dir = radius > 0.0 ? centered / radius : vec2(0.0);\n" +
-            "    float aberration = 0.003 + dist * 0.012;\n" +
+            "    float aberration = u_aberrationBase + dist * u_aberrationStrength;\n" +
             "    vec3 color;\n" +
             "    color.r = texture2D(u_texture, curvedUV + dir * aberration).r;\n" +
             "    color.g = texture2D(u_texture, curvedUV).g;\n" +
             "    color.b = texture2D(u_texture, curvedUV - dir * aberration).b;\n" +
-            "    float scan = 0.04 * sin((curvedUV.y * u_resolution.y) * 1.5 + u_time * 3.0);\n" +
+            "    float scan = u_scanAmplitude * sin((curvedUV.y * u_resolution.y) * u_scanFrequency + u_time * u_scanSpeed);\n" +
             "    color *= 1.0 - scan;\n" +
             "    float vignette = curvedUV.x * (1.0 - curvedUV.x) * curvedUV.y * (1.0 - curvedUV.y);\n" +
-            "    vignette = pow(vignette * 16.0, 0.35);\n" +
-            "    color *= mix(0.55, 1.05, clamp(vignette, 0.0, 1.0));\n" +
-            "    float noise = fract(sin(dot(curvedUV + u_time * 0.05, vec2(12.9898, 78.233))) * 43758.5453);\n" +
-            "    color += (noise - 0.5) * 0.02;\n" +
+            "    vignette = pow(vignette * u_vignetteScale, u_vignettePower);\n" +
+            "    color *= mix(u_vignetteMin, u_vignetteMax, clamp(vignette, 0.0, 1.0));\n" +
+            "    float noise = fract(sin(dot(curvedUV + u_time * u_noiseSpeed, vec2(12.9898, 78.233))) * 43758.5453);\n" +
+            "    color += (noise - 0.5) * u_noiseAmount;\n" +
             "    color = clamp(color, 0.0, 1.0);\n" +
             "    gl_FragColor = vec4(color, 1.0) * v_color;\n" +
             "}\n";
@@ -124,8 +137,11 @@ public class Main extends ApplicationAdapter {
     private float shaderTime;
     private Texture pixelTexture;
     private GlyphLayout glyphLayout;
+    private final CrtSettings crtSettings = new CrtSettings();
     private ShadowDebugMode shadowDebugMode = ShadowDebugMode.NORMAL;
     private final Color shadowDebugTint = new Color(Color.WHITE);
+    private CrtSettingsOverlay crtOverlay;
+    private InputMultiplexer inputMultiplexer;
     private float screenShakeTime;
     private float screenShakeDuration;
     private float screenShakeIntensity;
@@ -280,6 +296,13 @@ public class Main extends ApplicationAdapter {
         gameWon = false;
         ballLaunched = false;
         currentLevel = 1;
+
+        // Create CRT overlay HUD
+        crtOverlay = new CrtSettingsOverlay(getCrtSettings(), spriteBatch);
+        inputMultiplexer = new InputMultiplexer();
+        inputMultiplexer.addProcessor(crtOverlay.getStage());
+        Gdx.input.setInputProcessor(inputMultiplexer);
+        crtOverlay.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         // Create bricks for level 1
         loadLevel(currentLevel);
@@ -683,12 +706,17 @@ public class Main extends ApplicationAdapter {
         if (crtShader != null) {
             crtShader.setUniformf("u_time", shaderTime);
             crtShader.setUniformf("u_resolution", (float) frameBuffer.getWidth(), (float) frameBuffer.getHeight());
+            applyCrtUniforms();
         }
         postProcessBatch.draw(frameTexture, 0f, 0f, GAME_WIDTH, GAME_HEIGHT, 0f, 0f, 1f, 1f);
         postProcessBatch.end();
 
         if (crtShader != null) {
             postProcessBatch.setShader(null);
+        }
+
+        if (crtOverlay != null) {
+            crtOverlay.render(deltaTime);
         }
     }
 
@@ -817,6 +845,40 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void applyCrtUniforms() {
+        crtShader.setUniformf("u_curvature", crtSettings.curvature);
+        crtShader.setUniformf("u_aberrationBase", crtSettings.aberrationBase);
+        crtShader.setUniformf("u_aberrationStrength", crtSettings.aberrationStrength);
+        crtShader.setUniformf("u_scanAmplitude", crtSettings.scanAmplitude);
+        crtShader.setUniformf("u_scanFrequency", crtSettings.scanFrequency);
+        crtShader.setUniformf("u_scanSpeed", crtSettings.scanSpeed);
+        crtShader.setUniformf("u_vignetteScale", crtSettings.vignetteScale);
+        crtShader.setUniformf("u_vignettePower", crtSettings.vignettePower);
+        crtShader.setUniformf("u_vignetteMin", crtSettings.vignetteMin);
+        crtShader.setUniformf("u_vignetteMax", crtSettings.vignetteMax);
+        crtShader.setUniformf("u_noiseAmount", crtSettings.noiseAmount);
+        crtShader.setUniformf("u_noiseSpeed", crtSettings.noiseSpeed);
+    }
+
+    public CrtSettings getCrtSettings() {
+        return crtSettings;
+    }
+
+    public static class CrtSettings {
+        public float curvature = 0.12f;
+        public float aberrationBase = 0.003f;
+        public float aberrationStrength = 0.012f;
+        public float scanAmplitude = 0.04f;
+        public float scanFrequency = 1.5f;
+        public float scanSpeed = 3.0f;
+        public float vignetteScale = 16.0f;
+        public float vignettePower = 0.35f;
+        public float vignetteMin = 0.55f;
+        public float vignetteMax = 1.05f;
+        public float noiseAmount = 0.02f;
+        public float noiseSpeed = 0.05f;
+    }
+
     private void releaseStickyBalls() {
         if (stickyBalls.isEmpty()) {
             return;
@@ -864,7 +926,7 @@ public class Main extends ApplicationAdapter {
             drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
         }
 
-        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision Mode | F9: Shadow Debug", 16f, 36f);
+        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision Mode | F9: Shadow Debug | F10: CRT HUD", 16f, 36f);
 
         if (shadowDebugMode != ShadowDebugMode.NORMAL) {
             drawTextWithShadow("Shadow Mode: " + shadowDebugMode.getLabel(), 16f, 18f);
@@ -977,6 +1039,10 @@ public class Main extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
             shadowDebugMode = shadowDebugMode.next();
             System.out.println("Shadow debug: " + shadowDebugMode.getLabel());
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F10)) {
+            crtOverlay.toggle();
         }
 
         if (!paddle.isSticky() && !stickyBalls.isEmpty()) {
@@ -1501,6 +1567,9 @@ public class Main extends ApplicationAdapter {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height);
+        if (crtOverlay != null) {
+            crtOverlay.resize(width, height);
+        }
     }
 
     @Override
@@ -1540,6 +1609,9 @@ public class Main extends ApplicationAdapter {
         }
         if (wallHitSound != null) {
             wallHitSound.dispose();
+        }
+        if (crtOverlay != null) {
+            crtOverlay.dispose();
         }
     }
 }
