@@ -36,10 +36,10 @@ public class BallTrail {
 
     public BallTrail() {
         this.trailPoints = new ArrayList<>();
-        this.trailLifetime = 0.8f; // Trail lasts longer
-        this.trailSpacing = 3f; // Closer trail points for smoother effect
+        this.trailLifetime = 0.4f; // Slightly shorter trail persistence
+        this.trailSpacing = 30f; // Wider spacing for fewer stored points
         this.trailColor = new Color(Color.WHITE);
-        this.maxTrailPoints = 30; // More trail points for smoother trail
+        this.maxTrailPoints = 3; // Cap number of dots to keep trail light
         this.baseTrailLifetime = trailLifetime;
         this.baseTrailSpacing = trailSpacing;
         this.baseMaxTrailPoints = maxTrailPoints;

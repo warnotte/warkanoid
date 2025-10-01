@@ -974,6 +974,7 @@ public class Main extends ApplicationAdapter {
             // Only follow paddle with the first ball if not launched
             Ball firstBall = balls.get(0);
             firstBall.followPaddle(paddle);
+            firstBall.updateTrail(deltaTime);
             firstBall.updateTrailStyle(comboIntensity);
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched()) {
                 firstBall.launch();
@@ -991,6 +992,7 @@ public class Main extends ApplicationAdapter {
 
             if (stickyBalls.contains(ball)) {
                 ball.followPaddle(paddle);
+                ball.updateTrail(deltaTime);
                 ball.updateTrailStyle(comboIntensity);
             } else {
                 updateBallWithCollisions(ball, deltaTime);
@@ -1001,6 +1003,7 @@ public class Main extends ApplicationAdapter {
                     continue;
                 }
 
+                ball.updateTrail(deltaTime);
                 ball.updateTrailStyle(comboIntensity);
             }
         }

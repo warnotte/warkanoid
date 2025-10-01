@@ -36,32 +36,29 @@ public class Ball {
         float stepY = (velocity.y * deltaTime) / steps;
 
         for (int i = 0; i < steps; i++) {
-            bounds.x += stepX;
-            bounds.y += stepY;
-
-            // Add trail point only if ball is moving
-            if (velocity.len() > 0) {
-                trail.addPoint(bounds.x, bounds.y);
-            }
+            setPosition(bounds.x + stepX, bounds.y + stepY);
 
             // Check collision with walls after each step
             if (bounds.x - bounds.radius <= 0 || bounds.x + bounds.radius >= gameWidth) {
                 reverseX();
                 // Keep ball in bounds
-                if (bounds.x - bounds.radius < 0) bounds.x = bounds.radius;
-                if (bounds.x + bounds.radius > gameWidth) bounds.x = gameWidth - bounds.radius;
+                if (bounds.x - bounds.radius < 0) {
+                    setPosition(bounds.radius, bounds.y);
+                }
+                if (bounds.x + bounds.radius > gameWidth) {
+                    setPosition(gameWidth - bounds.radius, bounds.y);
+                }
                 break; // Stop movement for this frame after collision
             }
 
             if (bounds.y + bounds.radius >= gameHeight) {
                 reverseY();
-                bounds.y = gameHeight - bounds.radius;
+                setPosition(bounds.x, gameHeight - bounds.radius);
                 break; // Stop movement for this frame after collision
             }
         }
 
-        // Update trail
-        trail.update(deltaTime);
+        updateTrail(deltaTime);
     }
 
     public boolean isOutOfBounds(float gameHeight) {
@@ -109,7 +106,15 @@ public class Ball {
     }
 
     public void setPosition(float x, float y) {
+        boolean moved = Math.abs(bounds.x - x) > 0.0001f || Math.abs(bounds.y - y) > 0.0001f;
+        if (moved && velocity.len2() > 0.0001f) {
+            trail.addPoint(x, y);
+        }
         bounds.setPosition(x, y);
+    }
+
+    public void updateTrail(float deltaTime) {
+        trail.update(deltaTime);
     }
 
     public float getRadius() {
@@ -121,7 +126,7 @@ public class Ball {
             if (stickyMode && velocity.y < 0) { // Only stick if ball is going down
                 // Stop the ball and position it on paddle - keep X position where it hit
                 velocity.set(0, 0);
-                bounds.y = paddle.getY() + paddle.getHeight() + bounds.radius;
+                setPosition(bounds.x, paddle.getY() + paddle.getHeight() + bounds.radius);
                 // Don't change X position - keep it where the ball hit
                 return true; // Signal that ball is now stuck
             } else {
@@ -138,7 +143,7 @@ public class Ball {
                 velocity.y = Math.abs(speedMagnitude * (float) Math.cos(Math.toRadians(angle))); // Always up
 
                 // Move ball above paddle to prevent sticking
-                bounds.y = paddle.getY() + paddle.getHeight() + bounds.radius;
+                setPosition(bounds.x, paddle.getY() + paddle.getHeight() + bounds.radius);
             }
 
             return true;
@@ -291,7 +296,7 @@ public class Ball {
         float safeX = prevX + dx * backupT;
         float safeY = prevY + dy * backupT;
 
-        bounds.setPosition(safeX, safeY);
+        setPosition(safeX, safeY);
 
         // Hit the brick
         boolean destroyed = brick.hit();
@@ -314,7 +319,7 @@ public class Ball {
             }
         }
 
-        bounds.setPosition(result.posX, result.posY);
+        setPosition(result.posX, result.posY);
 
         float dot = velocity.x * result.normalX + velocity.y * result.normalY;
         if (dot < 0f) {
@@ -560,8 +565,8 @@ public class Ball {
     }
 
     public void followPaddle(Paddle paddle) {
-        bounds.x = paddle.getX() + paddle.getWidth() / 2f + stickyOffsetX;
-        bounds.y = paddle.getY() + paddle.getHeight() + bounds.radius;
+        setPosition(paddle.getX() + paddle.getWidth() / 2f + stickyOffsetX,
+                    paddle.getY() + paddle.getHeight() + bounds.radius);
     }
 
     public void clearTrail() {
