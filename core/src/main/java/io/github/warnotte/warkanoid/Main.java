@@ -817,6 +817,29 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void releaseStickyBalls() {
+        if (stickyBalls.isEmpty()) {
+            return;
+        }
+
+        float paddleCenter = paddle.getX() + paddle.getWidth() / 2f;
+        float maxAngle = 60f;
+        float speed = 300f;
+
+        for (Ball stickyBall : stickyBalls) {
+            float ballOffsetFromCenter = stickyBall.getX() - paddleCenter;
+            float angleInDegrees = (ballOffsetFromCenter / (paddle.getWidth() / 2f)) * maxAngle;
+            float angleInRadians = (float) Math.toRadians(90f - angleInDegrees);
+
+            stickyBall.setVelocity(
+                (float) (speed * Math.cos(angleInRadians)),
+                (float) (speed * Math.sin(angleInRadians))
+            );
+        }
+
+        stickyBalls.clear();
+    }
+
     private void renderHud() {
         float panelX = 16f;
         float panelWidth = 240f;
@@ -956,6 +979,10 @@ public class Main extends ApplicationAdapter {
             System.out.println("Shadow debug: " + shadowDebugMode.getLabel());
         }
 
+        if (!paddle.isSticky() && !stickyBalls.isEmpty()) {
+            releaseStickyBalls();
+        }
+
         // Check for cheat keys (testing power-ups)
         if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) {
             applyPowerUp(PowerUp.Type.MULTI_BALL);
@@ -1000,24 +1027,7 @@ public class Main extends ApplicationAdapter {
                 lasers.add(new Laser(paddle.getX() + paddle.getWidth() * 0.75f, laserY));
                 laserCooldown = 0.3f; // 300ms cooldown
             } else if (paddle.isSticky() && !stickyBalls.isEmpty()) {
-                // Release sticky balls based on their position on paddle
-                for (Ball stickyBall : stickyBalls) {
-                    // Calculate ball's position relative to paddle center
-                    float paddleCenter = paddle.getX() + paddle.getWidth() / 2f;
-                    float ballOffsetFromCenter = stickyBall.getX() - paddleCenter;
-
-                    // Launch angle based on position: -60° to +60° from vertical
-                    float maxAngle = 60f; // degrees
-                    float angleInDegrees = (ballOffsetFromCenter / (paddle.getWidth() / 2f)) * maxAngle;
-                    float angleInRadians = (float) Math.toRadians(90f - angleInDegrees); // 90° = straight up
-
-                    float speed = 300f;
-                    stickyBall.setVelocity(
-                        (float)(speed * Math.cos(angleInRadians)),
-                        (float)(speed * Math.sin(angleInRadians))
-                    );
-                }
-                stickyBalls.clear(); // Release all balls
+                releaseStickyBalls();
             }
         }
 
