@@ -69,10 +69,39 @@ public class Paddle {
         if (bounds.x + bounds.width > gameWidth) bounds.x = gameWidth - bounds.width;
     }
 
-    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
+    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
         shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
 
+        if (mode == Mode.LASER) {
+            float barrelWidth = 3f;
+            float barrelHeight = 8f;
+            float leftX = bounds.x + bounds.width * 0.25f - barrelWidth / 2f;
+            float rightX = bounds.x + bounds.width * 0.75f - barrelWidth / 2f;
+            float barrelY = bounds.y + bounds.height;
+            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
+            shapeRenderer.rect(leftX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
+            shapeRenderer.rect(rightX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
+        } else if (mode == Mode.STICKY) {
+            float dotSize = 2f;
+            float dotY = bounds.y + bounds.height - 3f;
+            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
+            for (int i = 0; i < 5; i++) {
+                float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
+                shapeRenderer.rect(x + shadowOffsetX, dotY + shadowOffsetY, dotSize, dotSize);
+            }
+        }
+
+        if (mode != Mode.NORMAL && modeTimer > 0) {
+            float barHeight = 3f;
+            float barY = bounds.y - barHeight - 2f;
+            float barWidth = bounds.width;
+            shapeRenderer.setColor(0f, 0f, 0f, 0.5f);
+            shapeRenderer.rect(bounds.x + shadowOffsetX, barY + shadowOffsetY, barWidth, barHeight);
+        }
+    }
+
+    public void render(ShapeRenderer shapeRenderer) {
         Color bodyColor = getModeColor();
         shapeRenderer.setColor(bodyColor);
         shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
@@ -83,22 +112,12 @@ public class Paddle {
             float leftX = bounds.x + bounds.width * 0.25f - barrelWidth / 2f;
             float rightX = bounds.x + bounds.width * 0.75f - barrelWidth / 2f;
             float barrelY = bounds.y + bounds.height;
-
-            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
-            shapeRenderer.rect(leftX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
-            shapeRenderer.rect(rightX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
-
             shapeRenderer.setColor(Color.CYAN);
             shapeRenderer.rect(leftX, barrelY, barrelWidth, barrelHeight);
             shapeRenderer.rect(rightX, barrelY, barrelWidth, barrelHeight);
         } else if (mode == Mode.STICKY) {
-            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
             float dotSize = 2f;
             float dotY = bounds.y + bounds.height - 3f;
-            for (int i = 0; i < 5; i++) {
-                float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
-                shapeRenderer.rect(x + shadowOffsetX, dotY + shadowOffsetY, dotSize, dotSize);
-            }
             shapeRenderer.setColor(Color.YELLOW);
             for (int i = 0; i < 5; i++) {
                 float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
@@ -106,17 +125,10 @@ public class Paddle {
             }
         }
 
-        // Draw power-up timer bar below paddle
         if (mode != Mode.NORMAL && modeTimer > 0) {
             float barHeight = 3f;
             float barY = bounds.y - barHeight - 2f;
             float barWidth = bounds.width;
-
-            // Background bar (dark)
-            shapeRenderer.setColor(0f, 0f, 0f, 0.5f);
-            shapeRenderer.rect(bounds.x + shadowOffsetX, barY + shadowOffsetY, barWidth, barHeight);
-
-            // Progress bar (colored based on mode)
             float progress = modeTimer / getInitialModeTimer();
             float progressWidth = barWidth * progress;
             shapeRenderer.setColor(bodyColor);

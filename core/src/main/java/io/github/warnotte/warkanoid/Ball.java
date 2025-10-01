@@ -68,12 +68,14 @@ public class Ball {
         return bounds.y - bounds.radius < 0;
     }
 
-    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        trail.render(shapeRenderer, shadowOffsetX, shadowOffsetY);
-
+    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
+        trail.renderShadow(shapeRenderer, shadowOffsetX, shadowOffsetY);
         shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
         shapeRenderer.circle(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.radius);
+    }
 
+    public void render(ShapeRenderer shapeRenderer) {
+        trail.render(shapeRenderer);
         shapeRenderer.setColor(ballColor);
         shapeRenderer.circle(bounds.x, bounds.y, bounds.radius);
     }

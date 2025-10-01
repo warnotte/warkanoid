@@ -37,44 +37,49 @@ public class Brick {
         this.type = type;
     }
 
-    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        if (!destroyed) {
-            // Drop shadow hinted to the bottom-right like the arcade original
-            shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
-            shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
+    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
+        if (destroyed) return;
 
-            shapeRenderer.setColor(color);
-            shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
+        shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
 
-            if (type == Type.BOMB) {
-                float centerX = bounds.x + bounds.width / 2f;
-                float centerY = bounds.y + bounds.height / 2f;
-                float size = 3f;
+        if (type == Type.BOMB) {
+            float centerX = bounds.x + bounds.width / 2f;
+            float centerY = bounds.y + bounds.height / 2f;
+            float size = 3f;
+            shapeRenderer.setColor(0f, 0f, 0f, 0.45f);
+            shapeRenderer.rect(centerX - size + shadowOffsetX, centerY - 1f + shadowOffsetY, size * 2f, 2f);
+            shapeRenderer.rect(centerX - 1f + shadowOffsetX, centerY - size + shadowOffsetY, 2f, size * 2f);
+        }
+    }
 
-                shapeRenderer.setColor(0f, 0f, 0f, 0.45f);
-                shapeRenderer.rect(centerX - size + shadowOffsetX, centerY - 1f + shadowOffsetY, size * 2f, 2f);
-                shapeRenderer.rect(centerX - 1f + shadowOffsetX, centerY - size + shadowOffsetY, 2f, size * 2f);
+    public void render(ShapeRenderer shapeRenderer) {
+        if (destroyed) return;
 
-                shapeRenderer.setColor(Color.BLACK);
-                shapeRenderer.rect(centerX - size, centerY - 1f, size * 2f, 2f);
-                shapeRenderer.rect(centerX - 1f, centerY - size, 2f, size * 2f);
-            } else if (type == Type.INDESTRUCTIBLE) {
-                // Draw diagonal stripes for indestructible bricks
-                shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1f);
-                float stripeWidth = 2f;
-                for (float offset = -bounds.height; offset < bounds.width; offset += 6f) {
-                    float x1 = bounds.x + offset;
-                    float y1 = bounds.y + bounds.height;
-                    float x2 = bounds.x + offset + bounds.height;
-                    float y2 = bounds.y;
+        shapeRenderer.setColor(color);
+        shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-                    // Clamp to brick bounds
-                    if (x1 < bounds.x) { y1 -= (bounds.x - x1); x1 = bounds.x; }
-                    if (x2 > bounds.x + bounds.width) { y2 += (x2 - bounds.x - bounds.width); x2 = bounds.x + bounds.width; }
+        if (type == Type.BOMB) {
+            float centerX = bounds.x + bounds.width / 2f;
+            float centerY = bounds.y + bounds.height / 2f;
+            float size = 3f;
+            shapeRenderer.setColor(Color.BLACK);
+            shapeRenderer.rect(centerX - size, centerY - 1f, size * 2f, 2f);
+            shapeRenderer.rect(centerX - 1f, centerY - size, 2f, size * 2f);
+        } else if (type == Type.INDESTRUCTIBLE) {
+            shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1f);
+            float stripeWidth = 2f;
+            for (float offset = -bounds.height; offset < bounds.width; offset += 6f) {
+                float x1 = bounds.x + offset;
+                float y1 = bounds.y + bounds.height;
+                float x2 = bounds.x + offset + bounds.height;
+                float y2 = bounds.y;
 
-                    if (x2 > x1) {
-                        shapeRenderer.rectLine(x1, y1, x2, y2, stripeWidth);
-                    }
+                if (x1 < bounds.x) { y1 -= (bounds.x - x1); x1 = bounds.x; }
+                if (x2 > bounds.x + bounds.width) { y2 += (x2 - bounds.x - bounds.width); x2 = bounds.x + bounds.width; }
+
+                if (x2 > x1) {
+                    shapeRenderer.rectLine(x1, y1, x2, y2, stripeWidth);
                 }
             }
         }

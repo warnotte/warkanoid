@@ -86,7 +86,7 @@ public class BallTrail {
         }
     }
 
-    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
+    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
         if (trailPoints.isEmpty()) return;
 
         for (int i = 0; i < trailPoints.size(); i++) {
@@ -98,6 +98,17 @@ public class BallTrail {
             shadowColor.a = alpha * 0.55f;
             shapeRenderer.setColor(shadowColor);
             shapeRenderer.circle(point.position.x + shadowOffsetX, point.position.y + shadowOffsetY, size * 1.05f);
+        }
+    }
+
+    public void render(ShapeRenderer shapeRenderer) {
+        if (trailPoints.isEmpty()) return;
+
+        for (int i = 0; i < trailPoints.size(); i++) {
+            TrailPoint point = trailPoints.get(i);
+            float progress = (float)i / Math.max(1, trailPoints.size() - 1);
+            float size = (3f + progress * 5f) * MathUtils.clamp(sizeMultiplier, 0.4f, 2.5f);
+            float alpha = MathUtils.clamp(point.alpha * 0.9f, 0f, 1f);
 
             renderColor.set(trailColor);
             renderColor.a = alpha;

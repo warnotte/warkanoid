@@ -5,6 +5,7 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -67,16 +68,49 @@ public class Main extends ApplicationAdapter {
             "    color = clamp(color, 0.0, 1.0);\n" +
             "    gl_FragColor = vec4(color, 1.0) * v_color;\n" +
             "}\n";
+
+    private static final String SHADOW_BLUR_VERTEX_SHADER = "attribute vec4 a_position;\n" +
+            "attribute vec4 a_color;\n" +
+            "attribute vec2 a_texCoord0;\n" +
+            "uniform mat4 u_projTrans;\n" +
+            "varying vec4 v_color;\n" +
+            "varying vec2 v_texCoords;\n" +
+            "void main() {\n" +
+            "    v_color = a_color;\n" +
+            "    v_texCoords = a_texCoord0;\n" +
+            "    gl_Position = u_projTrans * a_position;\n" +
+            "}\n";
+
+    private static final String SHADOW_BLUR_FRAGMENT_SHADER = "#ifdef GL_ES\n" +
+            "precision mediump float;\n" +
+            "#endif\n" +
+            "varying vec4 v_color;\n" +
+            "varying vec2 v_texCoords;\n" +
+            "uniform sampler2D u_texture;\n" +
+            "uniform vec2 u_direction;\n" +
+            "void main() {\n" +
+            "    vec4 sum = vec4(0.0);\n" +
+            "    sum += texture2D(u_texture, v_texCoords - 2.0 * u_direction) * 0.1216;\n" +
+            "    sum += texture2D(u_texture, v_texCoords - 1.0 * u_direction) * 0.2333;\n" +
+            "    sum += texture2D(u_texture, v_texCoords) * 0.2907;\n" +
+            "    sum += texture2D(u_texture, v_texCoords + 1.0 * u_direction) * 0.2333;\n" +
+            "    sum += texture2D(u_texture, v_texCoords + 2.0 * u_direction) * 0.1216;\n" +
+            "    gl_FragColor = sum * v_color;\n" +
+            "}\n";
+
     public static final int GAME_WIDTH = 800;
     public static final int GAME_HEIGHT = 600;
-    private static final float SHADOW_OFFSET_X = 15f;
-    private static final float SHADOW_OFFSET_Y = -15f;
+    private static final float SHADOW_OFFSET_X = 30f;
+    private static final float SHADOW_OFFSET_Y = -30f;
 
     private ShapeRenderer shapeRenderer;
     private SpriteBatch spriteBatch;
     private SpriteBatch postProcessBatch;
     private FrameBuffer frameBuffer;
+    private FrameBuffer shadowBuffer;
+    private FrameBuffer shadowPingBuffer;
     private ShaderProgram crtShader;
+    private ShaderProgram shadowBlurShader;
     private Matrix4 screenMatrix;
     private float shaderTime;
     private Texture pixelTexture;
@@ -527,44 +561,65 @@ public class Main extends ApplicationAdapter {
             postProcessBatch = new SpriteBatch();
         }
 
+        ensureShadowResources();
+        renderShadowLayer();
+
         frameBuffer.begin();
         ScreenUtils.clear(0.1f, 0.1f, 0.15f, 1f);
+
+        if (shadowBuffer != null) {
+            Texture shadowTexture = shadowBuffer.getColorBufferTexture();
+            shadowTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            spriteBatch.setProjectionMatrix(camera.combined);
+            spriteBatch.setColor(1f, 1f, 1f, 1f);
+            spriteBatch.enableBlending();
+            spriteBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+            spriteBatch.begin();
+            spriteBatch.draw(shadowTexture,
+                    0f, 0f,
+                    0f, 0f,
+                    GAME_WIDTH, GAME_HEIGHT,
+                    1f, 1f,
+                    0f,
+                    0, 0,
+                    shadowTexture.getWidth(), shadowTexture.getHeight(),
+                    false, true);
+            spriteBatch.end();
+            spriteBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        }
 
         shapeRenderer.setProjectionMatrix(camera.combined);
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
-        // Draw walls (white borders)
-        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
-        shapeRenderer.rect(SHADOW_OFFSET_X, SHADOW_OFFSET_Y, 5f, GAME_HEIGHT);
-        shapeRenderer.rect(GAME_WIDTH - 5f + SHADOW_OFFSET_X, SHADOW_OFFSET_Y, 5f, GAME_HEIGHT);
-        shapeRenderer.rect(SHADOW_OFFSET_X, GAME_HEIGHT - 5f + SHADOW_OFFSET_Y, GAME_WIDTH, 5f);
+        drawShadowCasters(shapeRenderer);
 
+        // Draw walls (white borders) without extra shadow
         shapeRenderer.setColor(Color.WHITE);
         shapeRenderer.rect(0, 0, 5f, GAME_HEIGHT);
         shapeRenderer.rect(GAME_WIDTH - 5f, 0, 5f, GAME_HEIGHT);
         shapeRenderer.rect(0, GAME_HEIGHT - 5f, GAME_WIDTH, 5f);
 
-        paddle.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+        paddle.render(shapeRenderer);
 
         for (Ball ball : balls) {
-            ball.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            ball.render(shapeRenderer);
         }
 
         for (Brick brick : bricks) {
-            brick.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            brick.render(shapeRenderer);
         }
 
         for (PowerUp powerUp : powerUps) {
-            powerUp.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            powerUp.render(shapeRenderer);
         }
 
         for (Particle particle : particles) {
-            particle.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            particle.render(shapeRenderer, 0f, 0f);
         }
 
         for (Laser laser : lasers) {
-            laser.render(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            laser.render(shapeRenderer);
         }
 
         shapeRenderer.setColor(Color.WHITE);
@@ -611,6 +666,111 @@ public class Main extends ApplicationAdapter {
 
         if (crtShader != null) {
             postProcessBatch.setShader(null);
+        }
+    }
+
+    private void ensureShadowResources() {
+        if (shadowBuffer == null) {
+            shadowBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, GAME_WIDTH, GAME_HEIGHT, false);
+            shadowBuffer.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+        if (shadowPingBuffer == null) {
+            shadowPingBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, GAME_WIDTH, GAME_HEIGHT, false);
+            shadowPingBuffer.getColorBufferTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+        if (shadowBlurShader == null) {
+            shadowBlurShader = new ShaderProgram(SHADOW_BLUR_VERTEX_SHADER, SHADOW_BLUR_FRAGMENT_SHADER);
+            if (!shadowBlurShader.isCompiled()) {
+                Gdx.app.error("ShadowBlur", "Failed to compile shadow blur shader: " + shadowBlurShader.getLog());
+                shadowBlurShader.dispose();
+                shadowBlurShader = null;
+            }
+        }
+    }
+
+    private void renderShadowLayer() {
+        if (shadowBuffer == null) {
+            return;
+        }
+
+        shadowBuffer.begin();
+        ScreenUtils.clear(0f, 0f, 0f, 0f);
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        drawShadowCasters(shapeRenderer);
+        shapeRenderer.end();
+        shadowBuffer.end();
+
+        blurShadowBuffer();
+    }
+
+    private void blurShadowBuffer() {
+        if (shadowBlurShader == null || shadowPingBuffer == null) {
+            return;
+        }
+
+        Texture source = shadowBuffer.getColorBufferTexture();
+        source.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        spriteBatch.setShader(shadowBlurShader);
+
+        shadowPingBuffer.begin();
+        ScreenUtils.clear(0f, 0f, 0f, 0f);
+        spriteBatch.setProjectionMatrix(screenMatrix);
+        spriteBatch.setColor(1f, 1f, 1f, 1f);
+        spriteBatch.enableBlending();
+        spriteBatch.begin();
+        shadowBlurShader.setUniformf("u_direction", 1f / GAME_WIDTH, 0f);
+        spriteBatch.draw(source,
+                0f, 0f,
+                0f, 0f,
+                GAME_WIDTH, GAME_HEIGHT,
+                1f, 1f,
+                0f,
+                0, 0,
+                source.getWidth(), source.getHeight(),
+                false, true);
+        spriteBatch.end();
+        shadowPingBuffer.end();
+
+        Texture pingTexture = shadowPingBuffer.getColorBufferTexture();
+        pingTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        shadowBuffer.begin();
+        ScreenUtils.clear(0f, 0f, 0f, 0f);
+        spriteBatch.setProjectionMatrix(screenMatrix);
+        spriteBatch.setColor(1f, 1f, 1f, 1f);
+        spriteBatch.enableBlending();
+        spriteBatch.begin();
+        shadowBlurShader.setUniformf("u_direction", 0f, 1f / GAME_HEIGHT);
+        spriteBatch.draw(pingTexture,
+                0f, 0f,
+                0f, 0f,
+                GAME_WIDTH, GAME_HEIGHT,
+                1f, 1f,
+                0f,
+                0, 0,
+                pingTexture.getWidth(), pingTexture.getHeight(),
+                false, true);
+        spriteBatch.end();
+        shadowBuffer.end();
+
+        spriteBatch.setShader(null);
+    }
+
+    private void drawShadowCasters(ShapeRenderer shapeRenderer) {
+        paddle.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+        for (Ball ball : balls) {
+            ball.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+        }
+        for (Brick brick : bricks) {
+            brick.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+        }
+        for (PowerUp powerUp : powerUps) {
+            powerUp.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+        }
+        for (Laser laser : lasers) {
+            laser.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
         }
     }
 
@@ -1288,8 +1448,17 @@ public class Main extends ApplicationAdapter {
         if (frameBuffer != null) {
             frameBuffer.dispose();
         }
+        if (shadowBuffer != null) {
+            shadowBuffer.dispose();
+        }
+        if (shadowPingBuffer != null) {
+            shadowPingBuffer.dispose();
+        }
         if (crtShader != null) {
             crtShader.dispose();
+        }
+        if (shadowBlurShader != null) {
+            shadowBlurShader.dispose();
         }
         font.dispose();
         if (pixelTexture != null) {
