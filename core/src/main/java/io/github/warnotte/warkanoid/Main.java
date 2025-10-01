@@ -865,18 +865,18 @@ public class Main extends ApplicationAdapter {
     }
 
     public static class CrtSettings {
-        public float curvature = 0.12f;
-        public float aberrationBase = 0.003f;
-        public float aberrationStrength = 0.012f;
-        public float scanAmplitude = 0.04f;
-        public float scanFrequency = 1.5f;
+        public float curvature = 0.021f;
+        public float aberrationBase = 0.001f;
+        public float aberrationStrength = 0.013f;
+        public float scanAmplitude = .1f;
+        public float scanFrequency = 3f;
         public float scanSpeed = 3.0f;
-        public float vignetteScale = 16.0f;
-        public float vignettePower = 0.35f;
-        public float vignetteMin = 0.55f;
-        public float vignetteMax = 1.05f;
-        public float noiseAmount = 0.02f;
-        public float noiseSpeed = 0.05f;
+        public float vignetteScale = 25f;
+        public float vignettePower = 0.5f;
+        public float vignetteMin = 0.44f;
+        public float vignetteMax = 1.4f;
+        public float noiseAmount = 0.07f;
+        public float noiseSpeed = 0.008f;
     }
 
     private void releaseStickyBalls() {
