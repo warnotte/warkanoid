@@ -1,45 +1,81 @@
 # Warkanoid
 
-Warkanoid est un clone moderne d'Arkanoid construit avec libGDX. Le projet met l'accent sur une jouabilite arcade fluide, des power-ups variees et une bande-son retro composee a partir de la banque de sons fournie.
+Warkanoid est une relecture moderne d'Arkanoid propulsee par libGDX. Le projet vise une jouabilite arcade propre, un rendu soigne et un pipeline d'effets parametriques directement dans le jeu.
 
-## Fonctionnalites actuelles
-- Physique de balle avec collisions fines sur murs, paddle et briques.
-- Power-ups multiples (multi-balle, lasers, paddle collant, etc.).
-- Effets audio separes pour le lancement, les rebonds et les impacts de briques.
-- Systemes de particules, lasers et bombes pour dynamiser les parties.
-- Builds desktop (LWJGL3) et Web (GWT) preconfigures via Gradle.
+## Points clefs
+- **Physique robuste** : collisions raycast sur les briques, boule, pala et murs, gestion sticky et reflexions precises.
+- **Trail et ombres** : trainee dynamique du projectile, pipeline d'ombres unifie avec blur multi-pass parametre.
+- **Power-ups completes** : multi-balle, lasers, paddle collant, modificateurs de taille et de vitesse.
+- **Effets visuels CRT** : shader post-process parametrique (courbure, aberration, scanlines, vignette, bruit) avec HUD temps reel.
+- **Feedbacks** : particules de destruction, bombes en chaine, lasers, HUD combo et debug (F9) pour le pipeline d'ombre.
 
-## Prise en main rapide
-1. Cloner le depot et ouvrir le dossier `Warkanoid`.
-2. Lancer la version desktop avec :
-   ```bash
-   ./gradlew lwjgl3:run
-   ```
-   ou bien sur Windows :
-   ```powershell
-   .\gradlew.bat lwjgl3:run
-   ```
-3. Les ressources se trouvent dans `assets/` et sont deja referencees dans `assets/assets.txt`.
+## Lancer le jeu
+```bash
+./gradlew lwjgl3:run
+```
+Sous Windows :
+```powershell
+.\gradlew.bat lwjgl3:run
+```
+Le projet charge automatiquement les assets depuis `assets/`.
 
-## Commandes de jeu
-- Deplacement : souris (la balle suit le paddle avant le lancement).
-- Lancer la balle / tirer (mode laser) : `ESPACE`.
-- Tests de power-ups : touches `1` a `8` pour declencher immediatement chaque bonus.
-- Relancer la partie apres une defaite : `R`.
+## Commandes par defaut
+| Action | Touche |
+| --- | --- |
+| Deplacer le paddle | Souris ou fleches gauche/droite |
+| Lancer / tirer (mode laser) | Espace |
+| Tester un power-up | 1..8 |
+| Switch niveaux | F1..F6 |
+| Basculer modes de collisions | F7 |
+| Debug ombres (normal / raw / blur / off) | F9 |
+| HUD CRT (sliders) | F10 |
+| Relancer apres Game Over | R |
 
-## Structure du projet
-- `core/` : logique du jeu et assets partages.
-- `lwjgl3/` : lanceur desktop.
-- `html/` : cible Web via GWT.
-- `assets/` : textures et sons.
+## HUD CRT (F10)
+Un overlay Scene2D permet d'ajuster en direct :
+- Curvature (courbure de l'ecran)
+- Aberration RGB (base / force)
+- Amplitude, frequence, vitesse des scanlines
+- Vignettage (scale, power, min/max)
+- Bruit (amount, speed)
+
+Les reglages sont exposes via `Main.CrtSettings`; le HUD ecrit dans cette structure en direct, ce qui simplifie le prototypage des valeurs par defaut.
+
+## Debug ombres (F9)
+Le raccourci bascule entre :
+1. `NORMAL` : ombre finale noire diffuse.
+2. `RAW MASK` : silhouettes brutes rouges (sans blur).
+3. `BLURRED MASK` : masque floute cyan pour verifier le rayon.
+4. `OFF` : pipeline desactive.
+
+Pratique pour verifier l'effet du blur multi-pass et ajuster `SHADOW_BLUR_RADIUS` / iterations.
+
+## Arborescence
+```
+core/
+  src/main/java/io/github/warnotte/warkanoid/
+    Main.java                <- boucle principale, pipeline render, HUDs
+    ...                      <- entites (Ball, Paddle, PowerUp, etc.)
+    ui/CrtSettingsOverlay.java
+lwjgl3/                      <- lanceur desktop
+html/                        <- cible GWT/Web (optionnelle)
+assets/                      <- textures, sons, fonts
+```
+
+## Scripts utiles
+- `./gradlew core:compileJava` : compile la logique principale.
+- `./gradlew core:test` : lance les tests unitaires (si presents).
+- `./gradlew lwjgl3:run -Pdebug=true` : possible de passer des system props pour activer des logs (ajustez selon vos besoins).
 
 ## Roadmap suggeree
-- Ajouter un feedback visuel renforce (flash, secousses, animations de paddle).
-- Ajuster le mixage audio (niveaux, boucles musicales, options Mute/SFX).
-- Externaliser les niveaux et patterns de briques dans des fichiers de donnees.
-- Introduire un ecran de score et la persistance des meilleurs resultats.
+- Ajouter un ecran de demarrage + options (volume, remapping touches).
+- Sauvegarder les valeurs CRT dans un fichier de config utilisateur.
+- Externaliser la definition des niveaux (JSON ou Tiled).
+- Ajouter un mode scoring avec table des meilleurs scores.
 
 ## Credits
-- Developpe autour du template `gdx-liftoff`.
-- Sons issus du dossier `assets/sounds/`. Pensez a conserver les noms de fichiers lorsque vous ajoutez ou remplacez des effets.
+- Projet base sur un template `gdx-liftoff`.
+- Sons retro dans `assets/sounds/` (licence a verifier selon usage).
+- Merci a la communaute libGDX pour les retours, et aux references Arkanoid/Taito pour l'inspiration.
 
+Retours et contributions bienvenus !
