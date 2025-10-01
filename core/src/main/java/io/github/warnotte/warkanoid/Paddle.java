@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
 
+
 public class Paddle {
     public enum Mode {
         NORMAL,
@@ -69,41 +70,14 @@ public class Paddle {
         if (bounds.x + bounds.width > gameWidth) bounds.x = gameWidth - bounds.width;
     }
 
-    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
-        shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
+    public void render(ShapeRenderer shapeRenderer, RenderPass pass) {
+        boolean shadow = pass == RenderPass.SHADOW_MASK;
 
-        if (mode == Mode.LASER) {
-            float barrelWidth = 3f;
-            float barrelHeight = 8f;
-            float leftX = bounds.x + bounds.width * 0.25f - barrelWidth / 2f;
-            float rightX = bounds.x + bounds.width * 0.75f - barrelWidth / 2f;
-            float barrelY = bounds.y + bounds.height;
-            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
-            shapeRenderer.rect(leftX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
-            shapeRenderer.rect(rightX + shadowOffsetX, barrelY + shadowOffsetY, barrelWidth, barrelHeight);
-        } else if (mode == Mode.STICKY) {
-            float dotSize = 2f;
-            float dotY = bounds.y + bounds.height - 3f;
-            shapeRenderer.setColor(0f, 0f, 0f, 0.3f);
-            for (int i = 0; i < 5; i++) {
-                float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
-                shapeRenderer.rect(x + shadowOffsetX, dotY + shadowOffsetY, dotSize, dotSize);
-            }
+        if (shadow) {
+            shapeRenderer.setColor(1f, 1f, 1f, 0.35f);
+        } else {
+            shapeRenderer.setColor(getModeColor());
         }
-
-        if (mode != Mode.NORMAL && modeTimer > 0) {
-            float barHeight = 3f;
-            float barY = bounds.y - barHeight - 2f;
-            float barWidth = bounds.width;
-            shapeRenderer.setColor(0f, 0f, 0f, 0.5f);
-            shapeRenderer.rect(bounds.x + shadowOffsetX, barY + shadowOffsetY, barWidth, barHeight);
-        }
-    }
-
-    public void render(ShapeRenderer shapeRenderer) {
-        Color bodyColor = getModeColor();
-        shapeRenderer.setColor(bodyColor);
         shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
         if (mode == Mode.LASER) {
@@ -112,13 +86,21 @@ public class Paddle {
             float leftX = bounds.x + bounds.width * 0.25f - barrelWidth / 2f;
             float rightX = bounds.x + bounds.width * 0.75f - barrelWidth / 2f;
             float barrelY = bounds.y + bounds.height;
-            shapeRenderer.setColor(Color.CYAN);
+            if (shadow) {
+                shapeRenderer.setColor(1f, 1f, 1f, 0.3f);
+            } else {
+                shapeRenderer.setColor(Color.CYAN);
+            }
             shapeRenderer.rect(leftX, barrelY, barrelWidth, barrelHeight);
             shapeRenderer.rect(rightX, barrelY, barrelWidth, barrelHeight);
         } else if (mode == Mode.STICKY) {
             float dotSize = 2f;
             float dotY = bounds.y + bounds.height - 3f;
-            shapeRenderer.setColor(Color.YELLOW);
+            if (shadow) {
+                shapeRenderer.setColor(1f, 1f, 1f, 0.3f);
+            } else {
+                shapeRenderer.setColor(Color.YELLOW);
+            }
             for (int i = 0; i < 5; i++) {
                 float x = bounds.x + (bounds.width / 6f) * (i + 1) - dotSize / 2f;
                 shapeRenderer.rect(x, dotY, dotSize, dotSize);
@@ -129,11 +111,19 @@ public class Paddle {
             float barHeight = 3f;
             float barY = bounds.y - barHeight - 2f;
             float barWidth = bounds.width;
-            float progress = modeTimer / getInitialModeTimer();
-            float progressWidth = barWidth * progress;
-            shapeRenderer.setColor(bodyColor);
+            float progress = getInitialModeTimer() > 0f ? modeTimer / getInitialModeTimer() : 1f;
+            float progressWidth = shadow ? barWidth : barWidth * Math.min(progress, 1f);
+            if (shadow) {
+                shapeRenderer.setColor(1f, 1f, 1f, 0.4f);
+            } else {
+                shapeRenderer.setColor(getModeColor());
+            }
             shapeRenderer.rect(bounds.x, barY, progressWidth, barHeight);
         }
+    }
+
+    public void render(ShapeRenderer shapeRenderer) {
+        render(shapeRenderer, RenderPass.MAIN);
     }
 
     public Rectangle getBounds() {

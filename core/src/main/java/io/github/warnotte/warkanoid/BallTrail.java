@@ -29,7 +29,6 @@ public class BallTrail {
     private float sizeMultiplier;
     private float spacingMultiplier;
     private final Color renderColor = new Color();
-    private final Color shadowColor = new Color(0f, 0f, 0f, 1f);
     private float baseTrailLifetime;
     private float baseTrailSpacing;
     private int baseMaxTrailPoints;
@@ -86,8 +85,12 @@ public class BallTrail {
         }
     }
 
-    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        if (trailPoints.isEmpty()) return;
+    public void render(ShapeRenderer shapeRenderer, RenderPass pass) {
+        if (trailPoints.isEmpty()) {
+            return;
+        }
+
+        boolean shadow = pass == RenderPass.SHADOW_MASK;
 
         for (int i = 0; i < trailPoints.size(); i++) {
             TrailPoint point = trailPoints.get(i);
@@ -95,26 +98,19 @@ public class BallTrail {
             float size = (3f + progress * 5f) * MathUtils.clamp(sizeMultiplier, 0.4f, 2.5f);
             float alpha = MathUtils.clamp(point.alpha * 0.9f, 0f, 1f);
 
-            shadowColor.a = alpha * 0.55f;
-            shapeRenderer.setColor(shadowColor);
-            shapeRenderer.circle(point.position.x + shadowOffsetX, point.position.y + shadowOffsetY, size * 1.05f);
+            if (shadow) {
+                renderColor.set(1f, 1f, 1f, alpha * 0.6f);
+            } else {
+                renderColor.set(trailColor);
+                renderColor.a = alpha;
+            }
+            shapeRenderer.setColor(renderColor);
+            shapeRenderer.circle(point.position.x, point.position.y, size);
         }
     }
 
     public void render(ShapeRenderer shapeRenderer) {
-        if (trailPoints.isEmpty()) return;
-
-        for (int i = 0; i < trailPoints.size(); i++) {
-            TrailPoint point = trailPoints.get(i);
-            float progress = (float)i / Math.max(1, trailPoints.size() - 1);
-            float size = (3f + progress * 5f) * MathUtils.clamp(sizeMultiplier, 0.4f, 2.5f);
-            float alpha = MathUtils.clamp(point.alpha * 0.9f, 0f, 1f);
-
-            renderColor.set(trailColor);
-            renderColor.a = alpha;
-            shapeRenderer.setColor(renderColor);
-            shapeRenderer.circle(point.position.x, point.position.y, size);
-        }
+        render(shapeRenderer, RenderPass.MAIN);
     }
 
     public void clear() {

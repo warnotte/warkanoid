@@ -37,38 +37,38 @@ public class Brick {
         this.type = type;
     }
 
-    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        if (destroyed) return;
-
-        shapeRenderer.setColor(0f, 0f, 0f, 0.35f);
-        shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
-
-        if (type == Type.BOMB) {
-            float centerX = bounds.x + bounds.width / 2f;
-            float centerY = bounds.y + bounds.height / 2f;
-            float size = 3f;
-            shapeRenderer.setColor(0f, 0f, 0f, 0.45f);
-            shapeRenderer.rect(centerX - size + shadowOffsetX, centerY - 1f + shadowOffsetY, size * 2f, 2f);
-            shapeRenderer.rect(centerX - 1f + shadowOffsetX, centerY - size + shadowOffsetY, 2f, size * 2f);
+    public void render(ShapeRenderer shapeRenderer, RenderPass pass) {
+        if (destroyed) {
+            return;
         }
-    }
 
-    public void render(ShapeRenderer shapeRenderer) {
-        if (destroyed) return;
+        boolean shadow = pass == RenderPass.SHADOW_MASK;
 
-        shapeRenderer.setColor(color);
+        if (shadow) {
+            shapeRenderer.setColor(1f, 1f, 1f, 0.35f);
+        } else {
+            shapeRenderer.setColor(color);
+        }
         shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
 
         if (type == Type.BOMB) {
             float centerX = bounds.x + bounds.width / 2f;
             float centerY = bounds.y + bounds.height / 2f;
             float size = 3f;
-            shapeRenderer.setColor(Color.BLACK);
+            if (shadow) {
+                shapeRenderer.setColor(1f, 1f, 1f, 0.45f);
+            } else {
+                shapeRenderer.setColor(Color.BLACK);
+            }
             shapeRenderer.rect(centerX - size, centerY - 1f, size * 2f, 2f);
             shapeRenderer.rect(centerX - 1f, centerY - size, 2f, size * 2f);
         } else if (type == Type.INDESTRUCTIBLE) {
-            shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1f);
             float stripeWidth = 2f;
+            if (shadow) {
+                shapeRenderer.setColor(1f, 1f, 1f, 0.45f);
+            } else {
+                shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1f);
+            }
             for (float offset = -bounds.height; offset < bounds.width; offset += 6f) {
                 float x1 = bounds.x + offset;
                 float y1 = bounds.y + bounds.height;
@@ -83,6 +83,10 @@ public class Brick {
                 }
             }
         }
+    }
+
+    public void render(ShapeRenderer shapeRenderer) {
+        render(shapeRenderer, RenderPass.MAIN);
     }
 
     public boolean hit() {

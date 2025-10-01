@@ -65,16 +65,18 @@ public class Ball {
         return bounds.y - bounds.radius < 0;
     }
 
-    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        trail.renderShadow(shapeRenderer, shadowOffsetX, shadowOffsetY);
-        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
-        shapeRenderer.circle(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.radius);
+    public void render(ShapeRenderer shapeRenderer, RenderPass pass) {
+        trail.render(shapeRenderer, pass);
+        if (pass == RenderPass.SHADOW_MASK) {
+            shapeRenderer.setColor(1f, 1f, 1f, 0.6f);
+        } else {
+            shapeRenderer.setColor(ballColor);
+        }
+        shapeRenderer.circle(bounds.x, bounds.y, bounds.radius);
     }
 
     public void render(ShapeRenderer shapeRenderer) {
-        trail.render(shapeRenderer);
-        shapeRenderer.setColor(ballColor);
-        shapeRenderer.circle(bounds.x, bounds.y, bounds.radius);
+        render(shapeRenderer, RenderPass.MAIN);
     }
 
     public Circle getBounds() {

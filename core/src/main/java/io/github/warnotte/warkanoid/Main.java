@@ -89,12 +89,19 @@ public class Main extends ApplicationAdapter {
             "uniform sampler2D u_texture;\n" +
             "uniform vec2 u_direction;\n" +
             "void main() {\n" +
-            "    vec4 sum = vec4(0.0);\n" +
-            "    sum += texture2D(u_texture, v_texCoords - 2.0 * u_direction) * 0.1216;\n" +
-            "    sum += texture2D(u_texture, v_texCoords - 1.0 * u_direction) * 0.2333;\n" +
-            "    sum += texture2D(u_texture, v_texCoords) * 0.2907;\n" +
-            "    sum += texture2D(u_texture, v_texCoords + 1.0 * u_direction) * 0.2333;\n" +
-            "    sum += texture2D(u_texture, v_texCoords + 2.0 * u_direction) * 0.1216;\n" +
+            "    vec4 sum = texture2D(u_texture, v_texCoords) * 0.227027;\n" +
+            "    vec2 offset = u_direction;\n" +
+            "    sum += texture2D(u_texture, v_texCoords + offset) * 0.1945946;\n" +
+            "    sum += texture2D(u_texture, v_texCoords - offset) * 0.1945946;\n" +
+            "    offset = u_direction * 2.0;\n" +
+            "    sum += texture2D(u_texture, v_texCoords + offset) * 0.1216216;\n" +
+            "    sum += texture2D(u_texture, v_texCoords - offset) * 0.1216216;\n" +
+            "    offset = u_direction * 3.0;\n" +
+            "    sum += texture2D(u_texture, v_texCoords + offset) * 0.054054;\n" +
+            "    sum += texture2D(u_texture, v_texCoords - offset) * 0.054054;\n" +
+            "    offset = u_direction * 4.0;\n" +
+            "    sum += texture2D(u_texture, v_texCoords + offset) * 0.016216;\n" +
+            "    sum += texture2D(u_texture, v_texCoords - offset) * 0.016216;\n" +
             "    gl_FragColor = sum * v_color;\n" +
             "}\n";
 
@@ -102,6 +109,8 @@ public class Main extends ApplicationAdapter {
     public static final int GAME_HEIGHT = 600;
     private static final float SHADOW_OFFSET_X = 30f;
     private static final float SHADOW_OFFSET_Y = -30f;
+    private static final float SHADOW_BLUR_RADIUS = 1f;
+    private static final int SHADOW_BLUR_ITERATIONS = 3;
 
     private ShapeRenderer shapeRenderer;
     private SpriteBatch spriteBatch;
@@ -115,6 +124,8 @@ public class Main extends ApplicationAdapter {
     private float shaderTime;
     private Texture pixelTexture;
     private GlyphLayout glyphLayout;
+    private ShadowDebugMode shadowDebugMode = ShadowDebugMode.NORMAL;
+    private final Color shadowDebugTint = new Color(Color.WHITE);
     private float screenShakeTime;
     private float screenShakeDuration;
     private float screenShakeIntensity;
@@ -155,6 +166,28 @@ public class Main extends ApplicationAdapter {
 
         public CollisionMode next() {
             CollisionMode[] modes = values();
+            return modes[(ordinal() + 1) % modes.length];
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
+    private enum ShadowDebugMode {
+        NORMAL("NORMAL"),
+        RAW_MASK("RAW MASK"),
+        BLURRED_MASK("BLURRED MASK"),
+        OFF("OFF");
+
+        private final String label;
+
+        ShadowDebugMode(String label) {
+            this.label = label;
+        }
+
+        public ShadowDebugMode next() {
+            ShadowDebugMode[] modes = values();
             return modes[(ordinal() + 1) % modes.length];
         }
 
@@ -567,11 +600,22 @@ public class Main extends ApplicationAdapter {
         frameBuffer.begin();
         ScreenUtils.clear(0.1f, 0.1f, 0.15f, 1f);
 
-        if (shadowBuffer != null) {
+        if (shadowBuffer != null && shadowDebugMode != ShadowDebugMode.OFF) {
             Texture shadowTexture = shadowBuffer.getColorBufferTexture();
             shadowTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
             spriteBatch.setProjectionMatrix(camera.combined);
-            spriteBatch.setColor(1f, 1f, 1f, 1f);
+            switch (shadowDebugMode) {
+                case RAW_MASK:
+                    shadowDebugTint.set(1f, 0f, 0f, 0.65f);
+                    break;
+                case BLURRED_MASK:
+                    shadowDebugTint.set(0f, 0.9f, 0.9f, 0.7f);
+                    break;
+                default:
+                    shadowDebugTint.set(0f, 0f, 0f, 0.85f);
+                    break;
+            }
+            spriteBatch.setColor(shadowDebugTint);
             spriteBatch.enableBlending();
             spriteBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
             spriteBatch.begin();
@@ -585,6 +629,7 @@ public class Main extends ApplicationAdapter {
                     shadowTexture.getWidth(), shadowTexture.getHeight(),
                     false, true);
             spriteBatch.end();
+            spriteBatch.setColor(Color.WHITE);
             spriteBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         }
 
@@ -592,35 +637,13 @@ public class Main extends ApplicationAdapter {
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
-        drawShadowCasters(shapeRenderer);
-
         // Draw walls (white borders) without extra shadow
         shapeRenderer.setColor(Color.WHITE);
         shapeRenderer.rect(0, 0, 5f, GAME_HEIGHT);
         shapeRenderer.rect(GAME_WIDTH - 5f, 0, 5f, GAME_HEIGHT);
         shapeRenderer.rect(0, GAME_HEIGHT - 5f, GAME_WIDTH, 5f);
 
-        paddle.render(shapeRenderer);
-
-        for (Ball ball : balls) {
-            ball.render(shapeRenderer);
-        }
-
-        for (Brick brick : bricks) {
-            brick.render(shapeRenderer);
-        }
-
-        for (PowerUp powerUp : powerUps) {
-            powerUp.render(shapeRenderer);
-        }
-
-        for (Particle particle : particles) {
-            particle.render(shapeRenderer, 0f, 0f);
-        }
-
-        for (Laser laser : lasers) {
-            laser.render(shapeRenderer);
-        }
+        renderGameObjects(shapeRenderer, RenderPass.MAIN);
 
         shapeRenderer.setColor(Color.WHITE);
         for (int i = 0; i < lives; i++) {
@@ -695,13 +718,19 @@ public class Main extends ApplicationAdapter {
 
         shadowBuffer.begin();
         ScreenUtils.clear(0f, 0f, 0f, 0f);
-        shapeRenderer.setProjectionMatrix(camera.combined);
+
+        Matrix4 shadowMatrix = new Matrix4(camera.combined).translate(SHADOW_OFFSET_X, SHADOW_OFFSET_Y, 0f);
+        shapeRenderer.setProjectionMatrix(shadowMatrix);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        drawShadowCasters(shapeRenderer);
+        renderGameObjects(shapeRenderer, RenderPass.SHADOW_MASK);
         shapeRenderer.end();
+
+        shapeRenderer.setProjectionMatrix(camera.combined);
         shadowBuffer.end();
 
-        blurShadowBuffer();
+        if (shadowDebugMode != ShadowDebugMode.RAW_MASK && shadowDebugMode != ShadowDebugMode.OFF) {
+            blurShadowBuffer();
+        }
     }
 
     private void blurShadowBuffer() {
@@ -709,68 +738,82 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        Texture source = shadowBuffer.getColorBufferTexture();
-        source.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-
         spriteBatch.setShader(shadowBlurShader);
+        Texture currentSource = shadowBuffer.getColorBufferTexture();
+        currentSource.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
-        shadowPingBuffer.begin();
-        ScreenUtils.clear(0f, 0f, 0f, 0f);
-        spriteBatch.setProjectionMatrix(screenMatrix);
-        spriteBatch.setColor(1f, 1f, 1f, 1f);
+        float baseOffsetX = SHADOW_BLUR_RADIUS / GAME_WIDTH;
+        float baseOffsetY = SHADOW_BLUR_RADIUS / GAME_HEIGHT;
+
+        for (int i = 0; i < SHADOW_BLUR_ITERATIONS; i++) {
+            float scale = (i + 1f) / (float) SHADOW_BLUR_ITERATIONS;
+
+            shadowPingBuffer.begin();
+            ScreenUtils.clear(0f, 0f, 0f, 0f);
+            spriteBatch.setProjectionMatrix(screenMatrix);
+            spriteBatch.setColor(1f, 1f, 1f, 1f);
+            spriteBatch.disableBlending();
+            spriteBatch.begin();
+            shadowBlurShader.setUniformf("u_direction", baseOffsetX * scale, 0f);
+            spriteBatch.draw(currentSource,
+                    0f, 0f,
+                    0f, 0f,
+                    GAME_WIDTH, GAME_HEIGHT,
+                    1f, 1f,
+                    0f,
+                    0, 0,
+                    currentSource.getWidth(), currentSource.getHeight(),
+                    false, true);
+            spriteBatch.end();
+            shadowPingBuffer.end();
+
+            Texture pingTexture = shadowPingBuffer.getColorBufferTexture();
+            pingTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+            shadowBuffer.begin();
+            ScreenUtils.clear(0f, 0f, 0f, 0f);
+            spriteBatch.setProjectionMatrix(screenMatrix);
+            spriteBatch.setColor(1f, 1f, 1f, 1f);
+            spriteBatch.disableBlending();
+            spriteBatch.begin();
+            shadowBlurShader.setUniformf("u_direction", 0f, baseOffsetY * scale);
+            spriteBatch.draw(pingTexture,
+                    0f, 0f,
+                    0f, 0f,
+                    GAME_WIDTH, GAME_HEIGHT,
+                    1f, 1f,
+                    0f,
+                    0, 0,
+                    pingTexture.getWidth(), pingTexture.getHeight(),
+                    false, true);
+            spriteBatch.end();
+            shadowBuffer.end();
+
+            currentSource = shadowBuffer.getColorBufferTexture();
+            currentSource.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
         spriteBatch.enableBlending();
-        spriteBatch.begin();
-        shadowBlurShader.setUniformf("u_direction", 1f / GAME_WIDTH, 0f);
-        spriteBatch.draw(source,
-                0f, 0f,
-                0f, 0f,
-                GAME_WIDTH, GAME_HEIGHT,
-                1f, 1f,
-                0f,
-                0, 0,
-                source.getWidth(), source.getHeight(),
-                false, true);
-        spriteBatch.end();
-        shadowPingBuffer.end();
-
-        Texture pingTexture = shadowPingBuffer.getColorBufferTexture();
-        pingTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-
-        shadowBuffer.begin();
-        ScreenUtils.clear(0f, 0f, 0f, 0f);
-        spriteBatch.setProjectionMatrix(screenMatrix);
-        spriteBatch.setColor(1f, 1f, 1f, 1f);
-        spriteBatch.enableBlending();
-        spriteBatch.begin();
-        shadowBlurShader.setUniformf("u_direction", 0f, 1f / GAME_HEIGHT);
-        spriteBatch.draw(pingTexture,
-                0f, 0f,
-                0f, 0f,
-                GAME_WIDTH, GAME_HEIGHT,
-                1f, 1f,
-                0f,
-                0, 0,
-                pingTexture.getWidth(), pingTexture.getHeight(),
-                false, true);
-        spriteBatch.end();
-        shadowBuffer.end();
 
         spriteBatch.setShader(null);
     }
 
-    private void drawShadowCasters(ShapeRenderer shapeRenderer) {
-        paddle.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+    private void renderGameObjects(ShapeRenderer shapeRenderer, RenderPass pass) {
+        paddle.render(shapeRenderer, pass);
         for (Ball ball : balls) {
-            ball.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            ball.render(shapeRenderer, pass);
         }
         for (Brick brick : bricks) {
-            brick.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            brick.render(shapeRenderer, pass);
         }
         for (PowerUp powerUp : powerUps) {
-            powerUp.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            powerUp.render(shapeRenderer, pass);
+        }
+        for (Particle particle : particles) {
+            particle.render(shapeRenderer, pass);
         }
         for (Laser laser : lasers) {
-            laser.renderShadow(shapeRenderer, SHADOW_OFFSET_X, SHADOW_OFFSET_Y);
+            laser.render(shapeRenderer, pass);
         }
     }
 
@@ -798,7 +841,11 @@ public class Main extends ApplicationAdapter {
             drawTextWithShadow("Max Combo: " + maxCombo, panelX + 16f, panelY + 22f);
         }
 
-        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision Mode", 16f, 36f);
+        drawTextWithShadow("Power-ups: 1-8 | Levels: F1-F6 | F7: Collision Mode | F9: Shadow Debug", 16f, 36f);
+
+        if (shadowDebugMode != ShadowDebugMode.NORMAL) {
+            drawTextWithShadow("Shadow Mode: " + shadowDebugMode.getLabel(), 16f, 18f);
+        }
 
         // Show collision mode
         drawTextWithShadow("Collision: " + collisionMode.getLabel(), GAME_WIDTH - 160f, 36f);
@@ -902,6 +949,11 @@ public class Main extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F7)) {
             collisionMode = collisionMode.next();
             System.out.println("Collision mode: " + collisionMode.getLabel());
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
+            shadowDebugMode = shadowDebugMode.next();
+            System.out.println("Shadow debug: " + shadowDebugMode.getLabel());
         }
 
         // Check for cheat keys (testing power-ups)

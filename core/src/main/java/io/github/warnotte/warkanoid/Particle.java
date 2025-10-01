@@ -47,11 +47,21 @@ public class Particle {
         size = size * alpha;
     }
 
-    public void render(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        if (life > 0) {
-            shapeRenderer.setColor(color);
-            shapeRenderer.circle(position.x, position.y, size);
+    public void render(ShapeRenderer shapeRenderer, RenderPass pass) {
+        if (life <= 0) {
+            return;
         }
+
+        if (pass == RenderPass.SHADOW_MASK) {
+            shapeRenderer.setColor(1f, 1f, 1f, color.a * 0.45f);
+        } else {
+            shapeRenderer.setColor(color);
+        }
+        shapeRenderer.circle(position.x, position.y, size);
+    }
+
+    public void render(ShapeRenderer shapeRenderer) {
+        render(shapeRenderer, RenderPass.MAIN);
     }
 
     public boolean isDead() {

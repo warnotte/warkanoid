@@ -21,16 +21,21 @@ public class Laser {
         }
     }
 
-    public void renderShadow(ShapeRenderer shapeRenderer, float shadowOffsetX, float shadowOffsetY) {
-        if (!active) return;
-        shapeRenderer.setColor(0f, 0f, 0f, 0.4f);
-        shapeRenderer.rect(bounds.x + shadowOffsetX, bounds.y + shadowOffsetY, bounds.width, bounds.height);
+    public void render(ShapeRenderer shapeRenderer, RenderPass pass) {
+        if (!active) {
+            return;
+        }
+
+        if (pass == RenderPass.SHADOW_MASK) {
+            shapeRenderer.setColor(1f, 1f, 1f, 0.45f);
+        } else {
+            shapeRenderer.setColor(Color.CYAN);
+        }
+        shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
     public void render(ShapeRenderer shapeRenderer) {
-        if (!active) return;
-        shapeRenderer.setColor(Color.CYAN);
-        shapeRenderer.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        render(shapeRenderer, RenderPass.MAIN);
     }
 
     public boolean isOutOfBounds(float gameHeight) {
